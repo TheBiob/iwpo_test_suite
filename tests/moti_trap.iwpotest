@@ -1,0 +1,90 @@
+; Tests for:
+;  Save sharing
+;  Saved message instance existing after receiving an online save
+;  Deleting online saves when player saves
+
+[configuration]
+folder=moti_trap
+game=moti_trapv0.4.exe
+arguments=
+output=moti_trapv0.4_online.exe
+timeout=60
+is_gms=false
+skip_execute=false
+
+[server_packages]
+save_game=TCP 05 00 "test" 00000080 1760.0 1234
+saved_256_1760=TCP 05 00 "test2" 00000100 1760.0 1234
+
+[events]
+$$pre_worldCreate
+	@name="Test";
+	@password="";
+	@race=false;
+
+$$test_GameBegin
+	if (@vars_loaded == false) {
+		ds_list_add(@vars, 0);
+	}
+	@step = ds_list_find_value(@vars, 0);
+
+$$test_Step
+	@step += 1;
+	ds_list_replace(@vars, 0, @step);
+
+	if (@step == 2) {
+		room_goto(rStage01);
+	} else if (@step == 3) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@SERVER_EXPECT("save_game");
+		with (player) {
+			x = 128;
+			y = 1760;
+		}
+		// Same thing the save point does, though in Step instead of On Collision with Bullet
+		saveGame(0);
+	} else if (@step == 5) {
+		@SERVER_RESPOND("saved_256_1760");
+	} else if (@step == 7) {
+		if (instance_number(@playerSaved) != 1) {
+			@ASSERTEQ(instance_number(@playerSaved), 1, "saved instance count", false); // Will fail
+		} else {
+			@ASSERTEQ(@playerSaved.text, "test2 saved!", "saved text", false);
+		}
+		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
+		sound_stop_all();
+		saveGame(true);
+		loadGame();
+	} else if (@step == 8) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@ASSERTEQ(player.x, 256, "player x", false);
+		@ASSERTEQ(player.y, 1760.4, "player y", false);
+	} else if (@step == 10) {
+		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
+		sound_stop_all();
+		saveGame(true);
+		loadGame();
+	} else if (@step == 12) {
+		// We loaded again without saving, player should be back on the original save
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@ASSERTEQ(player.x, 128, "player x", false);
+		@ASSERTEQ(player.y, 1760.4+0.8, "player y", false);
+		
+		@SERVER_RESPOND("saved_256_1760");
+	} else if (@step == 14) {
+		@ASSERT(file_exists("tempOnline2"), "tempOnline2 does not exist", false);
+		// Same thing the save point does, though in Step instead of On Collision with Bullet
+		saveGame(0);
+	} else if (@step == 16) {
+		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
+		sound_stop_all();
+		saveGame(true);
+		loadGame();
+	} else if (@step == 18) {
+		// We received an online save, but then saved ourselves, reloading should take us to our save
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@ASSERTEQ(player.x, 128, "player x", false);
+		@ASSERTEQ(player.y, 1760.4+0.8, "player y", false);
+	} else if (@step == 25) {
+		@SUCCESS();
+	}

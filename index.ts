@@ -1,13 +1,25 @@
 import { glob } from "glob";
 import process from "process";
+import path from "path";
+import fs from "fs/promises";
 
-class Config {
+import * as Helper from "./Helper";
+import { RunIwpoTests } from "./run_tests";
+
+export class Config {
     files: Array<string>;
     verbose: boolean;
     keep: boolean;
     help: boolean;
 
+    iwpo_base_folder: string;
+    temp_folder: string;
+
+    // Variables will be resolved by ResolveFiles and contain the absolute paths to the relevant resources
     resolved_files: Array<string>;
+    iwpo_exe: string;
+    iwpo_data: string;
+    temp_folder_resolved: string;
 
     public constructor() {
         this.resolved_files = [];
@@ -15,6 +27,8 @@ class Config {
         this.verbose = false;
         this.keep = false;
         this.help = false;
+        this.iwpo_base_folder = undefined;
+        this.temp_folder = undefined;
     }
 
     /**
@@ -31,24 +45,21 @@ class Config {
 
             for (let file of files) {
                 if (!(file in this.resolved_files))
-                    this.resolved_files.push(file);
+                    this.resolved_files.push(path.resolve(file));
             }
         }
+
+        this.iwpo_exe = path.resolve(path.join(this.iwpo_base_folder, 'iwpo.exe'));
+        this.iwpo_data = path.resolve(path.join(this.iwpo_base_folder, 'data'));
+        this.temp_folder_resolved = path.resolve(this.temp_folder);
     };
 }
 
 const ParseConfig = async function(args: Array<string>): Promise<Config> {
     let config: Config = new Config();
 
-    let expect_file: boolean = false;
-    for (let arg of args) {
-        if (expect_file) {
-            if (!(arg in config.files)) {
-                config.files.push(arg);
-            }
-            expect_file = false;
-            continue;
-        }
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
 
         switch (arg) {
             case '-h':
@@ -56,7 +67,40 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
                 config.help = true;
                 return config;
             case '--file':
-                expect_file = true;
+                if (i == args.length-1) {
+                    console.log('Missing file argument to --file');
+                    config.help = true;
+                } else {
+                    i++;
+                    const file = args[i];
+                    if (!(file in config.files)) {
+                        config.files.push(file);
+                    }
+                }
+                break;
+            case '--iwpo-dir':
+                if (i == args.length-1) {
+                    console.log('Missing directory argument to --iwpo-dir');
+                    config.help = true;
+                } else if (config.iwpo_base_folder !== undefined) {
+                    console.log('--iwpo-dir has already been configured');
+                    config.help = true;
+                } else {
+                    i++;
+                    config.iwpo_base_folder = args[i];
+                }
+                break;
+            case '--temp-dir':
+                if (i == args.length-1) {
+                    console.log('Missing directory argument to --temp-dir');
+                    config.help = true;
+                } else if (config.temp_folder !== undefined) {
+                    console.log('--temp-dir has already been configured');
+                    config.help = true;
+                } else {
+                    i++;
+                    config.temp_folder = args[i];
+                }
                 break;
             case '-k':
             case '--keep':
@@ -69,20 +113,20 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
         }
     }
 
-    if (expect_file) {
-        console.log('Missing file argument to --file');
-        config.help = true;
-    }
+    config.iwpo_base_folder = config.iwpo_base_folder ?? 'iwpo/';
+    config.temp_folder = config.temp_folder ?? 'temp/';
 
     return config;
 }
 
 const PrintHelp = async function() {
     console.log(`iwpotest.js [args]
---help, -h    - Prints this help
---file <file> - Which test file(s) to read and execute. Can be used multiple times and also supports wildcards like *.iwpotest. If a file is specified multiple times, it will only be run once.
---keep, -k    - Keeps generated temporary directories
---verbose, -v - Enables verbose logging
+--help, -h            - Prints this help
+--file <file>         - Which test file(s) to read and execute. Can be used multiple times and also supports wildcards like *.iwpotest. If a file is specified multiple times, it will only be run once.
+--iwpo-base-dir <dir> - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
+--temp-dir <dir>      - Sets the Temporary directory to copy to. Default: temp/
+--keep, -k            - Keeps generated temporary directories
+--verbose, -v         - Enables verbose logging
 `);
 }
 
@@ -94,14 +138,32 @@ const main = async function(): Promise<number> {
         return 0;
     }
 
-    config.ResolveFiles();
+    await config.ResolveFiles();
 
     if (config.resolved_files.length == 0) {
         console.log('No test files found');
+        return 0;
     }
 
-    return 0;
+    if (!await Helper.pathExists(config.iwpo_exe)) {
+        console.log(`'${config.iwpo_exe}' does not exist`);
+        return 0;
+    }
+    if (!await Helper.pathExists(config.iwpo_data)) {
+        console.log(`'${config.iwpo_data}' does not exist`);
+        return 0;
+    }
+    if (await Helper.pathExists(config.temp_folder_resolved)) {
+        console.log(`Warning: ${config.temp_folder_resolved} already exists`);
+    } else {
+        await fs.mkdir(config.temp_folder_resolved);
+    }
+
+    const all_passed = await RunIwpoTests(config);
+
+    return all_passed ? 0 : 1;
 }
 
 main()
-.then(() => {});
+.then(() => {})
+.catch(err => console.log(err));

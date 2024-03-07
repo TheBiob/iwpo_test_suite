@@ -1,7 +1,8 @@
 node_modules/
-tests/
 out/
 build/
+temp/
+iwpo/
 
 yarn-error.log
 

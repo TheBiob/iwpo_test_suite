@@ -12,7 +12,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\out\\index.js",
-            "args": ["--file", "*"],
+            "args": ["--file", "tests/*.iwpotest"],
             "preLaunchTask": "tsc: build - tsconfig.json"
         }
     ]
