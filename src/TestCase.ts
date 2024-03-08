@@ -161,7 +161,7 @@ export class Test {
         
         if (ini.server_packages !== undefined) {
             for (const packet in ini.server_packages) {
-                this.packages.set(packet, new ServerPackage(ini.server_packages[packet]));
+                this.packages.set(packet, new ServerPackage(packet, ini.server_packages[packet]));
             }
         }
         
