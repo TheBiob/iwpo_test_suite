@@ -13,6 +13,7 @@ This will run .iwpotest files in order to test for features in I Wanna Play Onli
 
 ## File Structure
     [configuration]
+    name=
     folder=
     game=
     arguments=
@@ -35,6 +36,7 @@ This will run .iwpotest files in order to test for features in I Wanna Play Onli
 ## [configuration] section
 | setting | info |
 |-|-|
+name         | optional. A name for the test. Default: name of test file.
 folder       | The folder with the exe to test for. This folder will be copied to a temporary location where the actual commands will be executed. The folder should be relative to where the .iwpotest file is located
 game         | The name of the exe to be converted.
 arguments    | optional. Arguments to add to the iwpo command.

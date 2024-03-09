@@ -1,10 +1,11 @@
+import path from "path";
 import { Config } from ".";
 import { Test } from "./TestCase";
 
 export async function RunIwpoTests(config: Config): Promise<boolean> {
     const tests = await Promise.all(
         config.resolved_files.map(async filename => {
-            const t: Test = new Test(config);
+            const t: Test = new Test(config, path.basename(filename));
             await t.readFromFile(filename);
             return t;
         })
