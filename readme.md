@@ -16,9 +16,10 @@ This will run .iwpotest files in order to test for features in I Wanna Play Onli
     name=
     folder=
     game=
-    arguments=
+    args[]=
     output=
     timeout=
+    iwpo_timeout=
     is_gms=
     skip_execute=
     
@@ -39,8 +40,9 @@ This will run .iwpotest files in order to test for features in I Wanna Play Onli
 name         | optional. A name for the test. Default: name of test file.
 folder       | The folder with the exe to test for. This folder will be copied to a temporary location where the actual commands will be executed. The folder should be relative to where the .iwpotest file is located
 game         | The name of the exe to be converted.
-arguments    | optional. Arguments to add to the iwpo command.
+args[]       | optional. Arguments to add to the iwpo command. One per line.
 output       | The generated file that will be (note: this is the output file that iwpo.exe generates, you can not choose an arbitrary name here, usually this will be \<game\>_online.exe)
+iwpo_timeout | How long (in seconds) iwpo is allowed to try and convert the game before the test suite aborts the process and fails the test. Default: 60. 0 means no timeout (not recommended)
 timeout      | How long (in seconds) the output file is allowed to run before the test suite aborts the process and fails the test. Default: 60. 0 means no timeout (not recommended)
 is_gms       | Whether or not the GMS part of the tool should be copied and modified or only the gm8 part.
 skip_execute | Whether or not executing the output file should be skipped. If this is true, the test will succeed if the iwpo command exits with code 0 and the output file exists.
@@ -91,12 +93,12 @@ $$test_GameBegin - The Game Begin event of the test object. Runs after the test 
 @SERVER_EXPECT(package)                 | Tells the server to expect the next package to be some specified package.
 @SERVER_RESPOND(package)                | Tells the server to send the current client some specified package.
 @ASSERT(assertion, text, abort)         | Asserts that a condition is true. If \<assertion\> is not true then it will fail the test and print \<text\> in the log then abort if \<abort\> is true.
-ASSERTEQ(expected, actual, text, abort) | Asserts that \<expected\> equals \<actual\>, if not it will fail the test and print \<text\> in the log, then abort if \<abort\> is true.
-@SUCCESS()                              | Writes an "ok" result and then calls game_end(); It will not try to delete any potential temp files the game may have created. If this is necessary, do so before calling this script.
+ASSERTEQ(expected, actual, text, abort) | Asserts that \<expected\> equals \<actual\>, if not it will fail the test and print '\<text\>: \<exected\> did not match \<actual\>' in the log, then abort if \<abort\> is true.
+@PASS()                                 | Writes an "ok" result and then calls game_end(); It will not try to delete any potential temp files the game may have created. If this is necessary, do so before calling this script.
 
 The output executable should create 2 files with the following purposes:
-result.txt - "ok" if everything has passed or "fail" if some test condition was not met.
-test.log   - A log of which conditions failed.
+ - result.txt - "ok" if everything has passed or "fail" if some test condition was not met.
+ - game_errors.log - A log of error messages. Gamemaker will also write this file if an error occured.
 
 These two files are generally created by the @ASSERT and @SUCCESS helper scripts
 
@@ -118,17 +120,3 @@ The test suite will execute things in the following order:
 On test fail/success:
 1) Stop server.js if it's running
 2) Delete temporary folders unless --keep is specified
-
----
-    $$test_GameBegin
-    @fname = "@var_ds_list.txt";
-    @vars_loaded = file_exists(@fname);
-    if (@vars_loaded) {
-        @f = file_text_open_read(@fname);
-        @vars = file_text_read_real(@f);
-    } else {
-        @vars = ds_list_create();
-        @f = file_text_open_write(@fname);
-        file_text_write_real(@f,@vars);
-    }
-    file_text_close(@f);

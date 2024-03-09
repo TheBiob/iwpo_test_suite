@@ -1,13 +1,29 @@
 import path from "path";
 import * as fs from "fs/promises";
 
-import * as Helper from "./Helper";
+import { Helper } from "./Helper";
 import { Test } from "./TestCase";
 
 enum EventOccurrence {
     pre, post, test
 }
-const knownTestFiles = ['Step', 'GameBegin'];
+const defaultTestFileCode = {
+    'Step': ``,
+
+    'GameBegin': `
+@fname = "@var_ds_list.txt";
+@vars_loaded = file_exists(@fname);
+if (@vars_loaded) {
+    @f = file_text_open_read(@fname);
+    @vars = file_text_read_real(@f);
+} else {
+    @vars = ds_list_create();
+    @f = file_text_open_write(@fname);
+    file_text_write_real(@f,@vars);
+}
+file_text_close(@f);
+    `,
+};
 
 export class IwpoEvent {
     test: Test;
@@ -19,6 +35,14 @@ export class IwpoEvent {
         this.file = file;
         this.test = test;
         this.gml = new Map<EventOccurrence, string>;
+    }
+
+    public static defaultEvents(test: Test): IwpoEvent[] {
+        const events: IwpoEvent[] = [];
+        for (const file in defaultTestFileCode) {
+            events.push(new IwpoEvent(file, test));
+        }
+        return events;
     }
 
     public async setGml(condition: string, gml: string): Promise<void> {
@@ -34,7 +58,7 @@ export class IwpoEvent {
         }
 
         if (occurrence === EventOccurrence.test) {
-            if (knownTestFiles.indexOf(this.file) < 0) {
+            if (defaultTestFileCode[this.file] === undefined) {
                 throw new Error(`Test File '${this.file}' is unknown`);
             }
         } else {
@@ -53,23 +77,29 @@ export class IwpoEvent {
     public async Initialize(): Promise<void> {
         const preGml = this.gml.get(EventOccurrence.pre);
         const postGml = this.gml.get(EventOccurrence.post);
-        const testGml = this.gml.get(EventOccurrence.test);
-
+        
         if (preGml !== undefined || postGml !== undefined) {
             const filePath = path.resolve(this.test.temp_dir, 'data', this.getFile(EventOccurrence.pre));
             
             let content = await fs.readFile(filePath, { encoding: 'utf-8' });
             if (preGml !== undefined) {
-                content = preGml + '\r\n//// END PRE GML ////\r\n' + content;
+                content = preGml + '\r\n/* END PRE GML */\r\n' + content; // Closes any potential stray block comments
             }
             if (postGml !== undefined) {
-                content += '\r\n//// BEGIN POST GML ////\r\n' + postGml;
+                content += '\r\n/* BEGIN POST GML */\r\n' + postGml; // Closes any potential stray block comments
             }
             
             await fs.writeFile(filePath, content);
         }
-
-        if (testGml !== undefined) {
+        
+        const defaultCode = defaultTestFileCode[this.file];
+        if (defaultCode !== undefined) {
+            let testGml = this.gml.get(EventOccurrence.test);
+            if (testGml === undefined) {
+                testGml = defaultCode;
+            } else {
+                testGml = defaultCode + '\r\n' + testGml;
+            }
             const filePath = path.resolve(this.test.temp_dir, 'data', this.getFile(EventOccurrence.test));
             await fs.mkdir(path.dirname(filePath), { recursive: true });
             await fs.writeFile(filePath, testGml);

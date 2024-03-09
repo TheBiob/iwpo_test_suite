@@ -6,7 +6,6 @@
 [configuration]
 folder=moti_trap
 game=moti_trapv0.4.exe
-arguments=
 output=moti_trapv0.4_online.exe
 timeout=60
 is_gms=false
@@ -86,5 +85,5 @@ $$test_Step
 		@ASSERTEQ(player.x, 128, "player x", false);
 		@ASSERTEQ(player.y, 1760.4+0.8, "player y", false);
 	} else if (@step == 25) {
-		@SUCCESS();
+		@PASS();
 	}

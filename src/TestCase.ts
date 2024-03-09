@@ -7,6 +7,7 @@ import fs from "fs/promises";
 import { Config } from ".";
 import { IwpoEvent } from "./IwpoEvent";
 import { ServerPackage } from "./ServerPackage";
+import { Helper } from "./Helper";
 
 // TODO: add the various extension files (font_online vs font_online8 etc) to the corresponding "don't copy" lists
 const GMS_FILES: string[] = [ // Files/directories that are GMS specific and don't need to be copied if the game isn't GMS
@@ -25,6 +26,12 @@ enum TestState {
     INITIALIZED,
     PASSED,
     FAILED
+}
+function string_array(input: any): string[] {
+    if (Array.isArray(input)) {
+        return input;
+    }
+    throw new Error(`'${input}' was not an array`);
 }
 function string(input: any): string {
     if (typeof input !== 'string') {
@@ -51,11 +58,15 @@ export class Test {
     config: Config;
     folder: string;
     game: string;
-    args: string;
+    args: string[];
     output: string;
     timeout: number;
+    iwpo_timeout: number;
     is_gms: boolean;
     skip_execute: boolean;
+
+    tcp_port: number;
+    udp_port: number;
 
     events: Array<IwpoEvent>;
     packages: Array<ServerPackage>;
@@ -66,12 +77,17 @@ export class Test {
     log: Array<string>;
 
     temp_dir: string;
+    output_resolved: string;
+    log_file: string;
+    result_file: string;
 
     public constructor(config: Config, name: string) {
         this.config = config;
-        this.message = '';
         this.log = new Array<string>;
         this.name = name;
+
+        this.tcp_port = Helper.getPort();
+        this.udp_port = Helper.getPort();
 
         this.status = TestState.WAITING;
     }
@@ -83,7 +99,7 @@ export class Test {
         return this.status !== TestState.FAILED && this.status !== TestState.PASSED;
     }
     public testResult(): string {
-        let message = `[${this.folder}/${this.game}] `;
+        let message = `[${this.name}] `;
         if (this.passed()) {
             message += 'PASSED';
         } else {
@@ -109,7 +125,7 @@ export class Test {
         await this._setState(TestState.READ, async () => { await this._initialize(); return TestState.INITIALIZED; });
     }
     public async Run(): Promise<void> {
-        await this._setState(TestState.INITIALIZED, this._run);
+        await this._setState(TestState.INITIALIZED, async () => { return await this._run(); });
     }
     public async Clean(): Promise<void> {
         await this._setState(this.status, async () => { await this._clean(); return this.status; });
@@ -172,10 +188,11 @@ export class Test {
         this.is_gms = required('configuration.is_gms', bool);
         
         // Optional settings
-        this.args = optional('configuration.arguments', string, '');
-        this.timeout = optional('configuration.timeout', number, 60);
-        this.skip_execute = optional('configuration.skip_execute', bool, false);
         this.name = optional('configuration.name', string, this.name);
+        this.args = optional('configuration.args', string_array, []);
+        this.timeout = optional('configuration.timeout', number, 60);
+        this.iwpo_timeout = optional('configuration.iwpo_timeout', number, 60);
+        this.skip_execute = optional('configuration.skip_execute', bool, false);
 
         // Resolve directories to absolute paths relative to this file
         this.folder = path.resolve(path.dirname(filename), this.folder);
@@ -188,7 +205,8 @@ export class Test {
                 this.packages.push(new ServerPackage(packet, ini.server_packages[packet]));
             }
         }
-        this.events = new Array<IwpoEvent>;
+
+        this.events = IwpoEvent.defaultEvents(this);
         if (fileContents.length > 1) {
             const matches = [...fileContents[1].matchAll(/^\$\$(?<condition>pre|post|test)_(?<filename>\w*?)\s*?$/gms)];
             for (let i = 0; i < matches.length; i++) {
@@ -209,6 +227,10 @@ export class Test {
     }
     private async _initialize(): Promise<void> {
         this.temp_dir = path.join(this.config.temp_folder_resolved, randomUUID());
+
+        this.output_resolved = path.resolve(this.temp_dir, this.output);
+        this.log_file = path.resolve(this.temp_dir, 'game_errors.log');
+        this.result_file = path.resolve(this.temp_dir, 'result.txt');
         
         this.log_verbose(`Copying '${this.folder}' to new temp directory '${this.temp_dir}'`);
         await fs.cp(this.folder, this.temp_dir, { recursive: true });
@@ -224,7 +246,7 @@ export class Test {
                 if (GMS_FILES.indexOf(name) >= 0) return false;
             }
             return true;
-        }, });
+        }});
 
         this.log_verbose(`Modifying iwpo files`);
         for (const event of this.events) {
@@ -232,16 +254,67 @@ export class Test {
         }
     }
     private async _run(): Promise<TestState> {
-        throw new Error("Method _run not implemented.");
+        const result = await Helper.exec(path.resolve(this.temp_dir, 'iwpo.exe'), this.temp_dir, this.config.verbose, this.iwpo_timeout,
+            path.resolve(this.temp_dir, this.game),
+            ...this.args,
+            '--test-suite',
+            `server=localhost,${this.tcp_port},${this.udp_port}`,
+        );
+
+        this.log.push(result.out);
+        if (result.err !== '') {
+            this.log.push(result.err);
+        }
+
+        if (result.code != 0) {
+            return this.fail('IWPO exited with code ' + result.code);
+        }
+
+        if (!await Helper.pathExists(this.output_resolved)) {
+            return this.fail(`Output file '${this.output}' did not exist`);
+        }
+
+        if (this.skip_execute) {
+            return TestState.PASSED;
+        }
+
+        return await this._execute();
+    }
+    private async _execute(): Promise<TestState> {
+        await Helper.exec(this.output_resolved, this.temp_dir, this.config.verbose, this.timeout);
+
+        if (await Helper.pathExists(this.log_file)) {
+            const fileContent = await fs.readFile(this.log_file, { encoding: 'utf-8' });
+            this.log.push(...fileContent.split('\n'));
+        } else {
+            this.log_verbose(`Log file '${this.log_file}' was not found`);
+        }
+
+        if (!await Helper.pathExists(this.result_file)) {
+            this.log_verbose(`'${this.result_file}' does not exist`);
+            return this.fail('Result file was not created');
+        }
+
+        const fileContent = await fs.readFile(this.result_file, { encoding: 'utf-8' });
+        if (fileContent !== 'ok') {
+            this.log_verbose('Test failed with status: ' + fileContent);
+            return this.fail("Test result was not 'ok'");
+        }
+
+        return TestState.PASSED;
     }
     private async _clean(): Promise<void> {
-        if (this.config.keep === false) {
             if (this.temp_dir.length != 0) {
+                this.log_verbose(`Cleaning temp directory '${this.temp_dir}'`);
                 await fs.rm(this.temp_dir, { recursive: true });
             } else {
                 console.warn('Temp directory is empty');
             }
-        }
+    }
+
+    private fail(msg: string | undefined = undefined): TestState {
+        this.message = msg;
+        return TestState.FAILED;
     }
 
     private log_verbose(msg: string) {

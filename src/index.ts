@@ -3,7 +3,7 @@ import process from "process";
 import path from "path";
 import fs from "fs/promises";
 
-import * as Helper from "./Helper";
+import { Helper } from "./Helper";
 import { RunIwpoTests } from "./run_tests";
 
 export class Config {
@@ -153,9 +153,9 @@ const main = async function(): Promise<number> {
         console.log(`'${config.iwpo_data}' does not exist`);
         return 0;
     }
-    if (await Helper.pathExists(config.temp_folder_resolved)) {
-        console.log(`Warning: ${config.temp_folder_resolved} already exists`);
-    } else {
+    if (!await Helper.pathExists(config.temp_folder_resolved)) {
+        if (config.verbose)
+            console.log(`Creating temp directory '${config.temp_folder_resolved}'`);
         await fs.mkdir(config.temp_folder_resolved);
     }
 
