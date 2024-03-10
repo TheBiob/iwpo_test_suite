@@ -14,11 +14,15 @@ export class Config {
 
     iwpo_base_folder: string;
     temp_folder: string;
+    server_js: string;
+
+    test_server: string;
 
     // Variables will be resolved by ResolveFiles and contain the absolute paths to the relevant resources
     resolved_files: Array<string>;
     iwpo_exe: string;
     iwpo_data: string;
+    server_js_resolved: string;
     temp_folder_resolved: string;
 
     public constructor() {
@@ -29,6 +33,7 @@ export class Config {
         this.help = false;
         this.iwpo_base_folder = undefined;
         this.temp_folder = undefined;
+        this.test_server = '127.0.0.1'; // Currently not configureable from the CLI. Not sure if that'd be useful.
     }
 
     /**
@@ -51,6 +56,7 @@ export class Config {
 
         this.iwpo_exe = path.resolve(path.join(this.iwpo_base_folder, 'iwpo.exe'));
         this.iwpo_data = path.resolve(path.join(this.iwpo_base_folder, 'data'));
+        this.server_js_resolved = path.resolve(this.server_js);
         this.temp_folder_resolved = path.resolve(this.temp_folder);
     };
 }
@@ -102,6 +108,18 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
                     config.temp_folder = args[i];
                 }
                 break;
+            case '--server-script':
+                if (i == args.length-1) {
+                    console.log('Missing file argument to --server-script');
+                    config.help = true;
+                } else if (config.server_js !== undefined) {
+                    console.log('--server-script has already been configured');
+                    config.help = true;
+                } else {
+                    i++;
+                    config.server_js = args[i];
+                }
+                break;
             case '-k':
             case '--keep':
                 config.keep = true;
@@ -115,18 +133,20 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
 
     config.iwpo_base_folder = config.iwpo_base_folder ?? 'iwpo/';
     config.temp_folder = config.temp_folder ?? 'temp/';
+    config.server_js = config.server_js ?? 'iwpo/server.js';
 
     return config;
 }
 
 const PrintHelp = async function() {
     console.log(`iwpotest.js [args]
---help, -h            - Prints this help
---file <file>         - Which test file(s) to read and execute. Can be used multiple times and also supports wildcards like *.iwpotest. If a file is specified multiple times, it will only be run once.
---iwpo-base-dir <dir> - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
---temp-dir <dir>      - Sets the Temporary directory to copy to. Default: temp/
---keep, -k            - Keeps generated temporary directories
---verbose, -v         - Enables verbose logging
+--help, -h             - Prints this help
+--file <file>          - Which test file(s) to read and execute. Can be used multiple times and also supports wildcards like *.iwpotest. If a file is specified multiple times, it will only be run once.
+--server-script <file> - Sets the server script file to copy and start. Default: iwpo/server.js
+--iwpo-base-dir <dir>  - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
+--temp-dir <dir>       - Sets the temporary directory to copy to. Default: temp/
+--keep, -k             - Keeps generated temporary directories
+--verbose, -v          - Enables verbose logging
 `);
 }
 

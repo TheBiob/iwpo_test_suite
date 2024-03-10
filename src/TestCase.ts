@@ -8,6 +8,7 @@ import { Config } from ".";
 import { IwpoEvent } from "./IwpoEvent";
 import { ServerPackage } from "./ServerPackage";
 import { Helper } from "./Helper";
+import { Server } from "./Server";
 
 // TODO: add the various extension files (font_online vs font_online8 etc) to the corresponding "don't copy" lists
 const GMS_FILES: string[] = [ // Files/directories that are GMS specific and don't need to be copied if the game isn't GMS
@@ -81,6 +82,8 @@ export class Test {
     log_file: string;
     result_file: string;
 
+    server: Server;
+
     public constructor(config: Config, name: string) {
         this.config = config;
         this.log = new Array<string>;
@@ -134,7 +137,7 @@ export class Test {
     private async _setState(expected: TestState, fn: () => Promise<TestState>): Promise<void> {
         try
         {
-            if (this.status != expected) throw new Error(`Test is in invalid state '${this.status}'. Expected: '${expected}'`);
+            if (this.status !== expected) throw new Error(`Test is in invalid state '${TestState[this.status]}'. Expected: '${TestState[expected]}'`);
             this.status = await fn();
         }
         catch (e)
@@ -235,8 +238,9 @@ export class Test {
         this.log_verbose(`Copying '${this.folder}' to new temp directory '${this.temp_dir}'`);
         await fs.cp(this.folder, this.temp_dir, { recursive: true });
 
-        this.log_verbose(`Copying iwpo.exe and data directory`);
+        this.log_verbose(`Copying iwpo.exe, server.js and data directory`);
         await fs.cp(this.config.iwpo_exe, path.join(this.temp_dir, 'iwpo.exe'));
+        await fs.cp(this.config.server_js_resolved, path.join(this.temp_dir, 'server.mjs'));
         await fs.cp(this.config.iwpo_data, path.join(this.temp_dir, 'data'), { recursive: true, filter(source, _destination) {
             const name = path.basename(source);
             if (SKIP_FILES.indexOf(name) >= 0) return false;
@@ -252,13 +256,18 @@ export class Test {
         for (const event of this.events) {
             await event.Initialize();
         }
+
+        this.log_verbose(`Writing server packages`);
+        for (const packet of this.packages) {
+            await packet.Initialize(this);
+        }
     }
     private async _run(): Promise<TestState> {
         const result = await Helper.exec(path.resolve(this.temp_dir, 'iwpo.exe'), this.temp_dir, this.config.verbose, this.iwpo_timeout,
             path.resolve(this.temp_dir, this.game),
             ...this.args,
             '--test-suite',
-            `server=localhost,${this.tcp_port},${this.udp_port}`,
+            `server=${this.config.test_server},${this.tcp_port},${this.udp_port}`,
         );
 
         this.log.push(result.out);
@@ -266,7 +275,7 @@ export class Test {
             this.log.push(result.err);
         }
 
-        if (result.code != 0) {
+        if (result.code !== 0) {
             return this.fail('IWPO exited with code ' + result.code);
         }
 
@@ -281,8 +290,12 @@ export class Test {
         return await this._execute();
     }
     private async _execute(): Promise<TestState> {
-        await Helper.exec(this.output_resolved, this.temp_dir, this.config.verbose, this.timeout);
+        this.server = new Server(this);
 
+        await this.server.start();
+        await Helper.exec(this.output_resolved, this.temp_dir, this.config.verbose, this.timeout);
+        await this.server.stop();
+        
         if (await Helper.pathExists(this.log_file)) {
             const fileContent = await fs.readFile(this.log_file, { encoding: 'utf-8' });
             this.log.push(...fileContent.split('\n'));
@@ -298,26 +311,27 @@ export class Test {
         const fileContent = await fs.readFile(this.result_file, { encoding: 'utf-8' });
         if (fileContent !== 'ok') {
             this.log_verbose('Test failed with status: ' + fileContent);
-            return this.fail("Test result was not 'ok'");
+            return this.fail(fileContent);
         }
 
         return TestState.PASSED;
     }
     private async _clean(): Promise<void> {
-            if (this.temp_dir.length != 0) {
-                this.log_verbose(`Cleaning temp directory '${this.temp_dir}'`);
-                await fs.rm(this.temp_dir, { recursive: true });
-            } else {
-                console.warn('Temp directory is empty');
-            }
+        if (this.temp_dir.length != 0) {
+            this.log_verbose(`Cleaning temp directory '${this.temp_dir}'`);
+            await fs.rm(this.temp_dir, { recursive: true });
+        } else {
+            console.warn('Temp directory is not set');
+        }
     }
 
-    private fail(msg: string | undefined = undefined): TestState {
+    public fail(msg: string): TestState {
+        this.log.push(msg);
         this.message = msg;
         return TestState.FAILED;
     }
 
-    private log_verbose(msg: string) {
+    public log_verbose(msg: string) {
         if (this.config.verbose) {
             console.log(`[${this.name}] ${msg}`);
         }

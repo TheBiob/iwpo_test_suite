@@ -43,8 +43,8 @@ export class Helper {
             try
             {
                 const std = {
-                    out: "",
-                    err: "",
+                    out: '',
+                    err: '',
                 }
                 
                 if (verbose) {
@@ -58,7 +58,6 @@ export class Helper {
                     windowsHide: true,
                     shell: false,
                     timeout: timeout*1000,
-                    detached: true,
                     env: {},
                 });
                 for (const stream in std) {
@@ -66,7 +65,7 @@ export class Helper {
                         std[stream] += data;
                     });
                 }
-                process.on("exit", function(code: number): void {
+                process.on('exit', function(code: number): void {
                     resolve({ code: code, out: std.out, err: std.err });
                 });
             } catch (e) {
