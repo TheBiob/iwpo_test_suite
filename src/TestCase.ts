@@ -295,6 +295,9 @@ export class Test {
         await this.server.start();
         await Helper.exec(this.output_resolved, this.temp_dir, this.config.verbose, this.timeout);
         await this.server.stop();
+
+        this.log_verbose(this.server.stdout);
+        this.log_verbose(this.server.stderr);
         
         if (await Helper.pathExists(this.log_file)) {
             const fileContent = await fs.readFile(this.log_file, { encoding: 'utf-8' });
@@ -332,7 +335,7 @@ export class Test {
     }
 
     public log_verbose(msg: string) {
-        if (this.config.verbose) {
+        if (this.config.verbose && msg !== '') {
             console.log(`[${this.name}] ${msg}`);
         }
     }

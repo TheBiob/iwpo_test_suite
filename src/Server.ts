@@ -66,8 +66,12 @@ export class Server {
     public async stop(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                this.process.send('get_result_and_close');
-                this.process.on('close', resolve);
+                if (this.process.exitCode === null) {
+                    this.process.send('get_result_and_close');
+                    this.process.on('close', resolve);
+                } else {
+                    resolve();
+                }
             } catch (e) {
                 reject(e);
             }

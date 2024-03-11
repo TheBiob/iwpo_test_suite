@@ -77,15 +77,15 @@ IWPO will not set any variables that would normally require a user input like @n
 Everything after a (or up until the next) $$ marker will be copied into the relevant script that IWPO applies. IWPO's post processing will also be applied to this code so you can use @ for the __ONLINE_ placeholder, it is however recommended that you don't use #if's unless to check if they are what is expected for this game.
 
 ## Online Test Object
-IWPO will also create a test object called "__ONLINE_TESTOBJ" which is added to the first room. This object will have a Game Begin, Game End and Step event.
-It will also automatically create and preserve a ds_list in the variable "@vars" by loading the index from a file in Game Begin or creating a new list and saving that index in a file if it does not yet exist.
-There will also be the "@vars_loaded" variable which will be true if @vars was loaded from a file, or false if it wasn't.
+IWPO will also create a test object called "__ONLINE_TESTOBJ" which is created at the end of the worldCreate event. This object has a Game Begin and normal Step event.
+It will also automatically create and preserve a ds_list in the variable "@vars" by loading the index from a file in Game Begin or creating a new list and saving that index in a file if it doesn't yet exist.
+There will also be the "@vars_loaded" variable which will be true if @vars was loaded from a file, or false if it wasn't. Can be used to initialize variables in the list if it wasn't loaded.
 
-To run code in these events the following events are made accessible:
-//TODO: only add if necessary: $$test_Create    - The create event of the test object. There is no internal code running here, the @vars ds_list may not exist yet.
-//TODO: only add if necessary: $$test_GameEnd   - The Game End event of the test object.
-$$test_Step      - The step event of the test object
-$$test_GameBegin - The Game Begin event of the test object. Runs after the test object's own Game Begin code.
+To run code in these events the following events are available:
+|Event|Info|
+|-|-|
+|$$test_Step     | The step event of the test object. This does not run in EndStep like the world event. The test object is always the last in the object list.|
+|$$test_GameBegin | The Game Begin event of the test object. Runs after the test object's own Game Begin code.|
 
 ## Helper Scripts
 |script|info|
@@ -93,7 +93,7 @@ $$test_GameBegin - The Game Begin event of the test object. Runs after the test 
 @SERVER_EXPECT(package)                 | Tells the server to expect the next package to be some specified package.
 @SERVER_RESPOND(package)                | Tells the server to send the current client some specified package.
 @ASSERT(assertion, text, abort)         | Asserts that a condition is true. If \<assertion\> is not true then it will fail the test and print \<text\> in the log then abort if \<abort\> is true.
-ASSERTEQ(expected, actual, text, abort) | Asserts that \<expected\> equals \<actual\>, if not it will fail the test and print '\<text\>: \<exected\> did not match \<actual\>' in the log, then abort if \<abort\> is true.
+ASSERTEQ(expected, actual, text, abort) | Asserts that \<expected\> equals \<actual\>, if not it will fail the test and print "\<text\>: Expected '\<exected\>' bit got '\<actual\>'" in the log, then abort if \<abort\> is true.
 @PASS()                                 | Writes an "ok" result and then calls game_end(); It will not try to delete any potential temp files the game may have created. If this is necessary, do so before calling this script.
 
 The output executable should create 2 files with the following purposes:
