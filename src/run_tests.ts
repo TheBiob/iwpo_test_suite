@@ -14,7 +14,7 @@ export async function RunIwpoTests(config: Config): Promise<boolean> {
     for (const test of tests) {
         if (test.can_execute()) await test.Initialize();
         if (test.can_execute()) await test.Run();
-        if (!config.keep) await test.Clean();
+        await test.Clean();
     }
 
     let passed = 0;

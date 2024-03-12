@@ -317,18 +317,28 @@ export class Test {
             return this.fail(fileContent);
         }
 
+        if (!this.server.ok()) {
+            return this.fail(this.server.message);
+        }
+
         return TestState.PASSED;
     }
     private async _clean(): Promise<void> {
-        if (this.temp_dir.length != 0) {
-            this.log_verbose(`Cleaning temp directory '${this.temp_dir}'`);
-            await fs.rm(this.temp_dir, { recursive: true });
-        } else {
-            console.warn('Temp directory is not set');
+        if (this.server !== undefined) {
+            this.server.kill();
+        }
+
+        if (this.config.keep === false) {
+            if (this.temp_dir.length != 0) {
+                this.log_verbose(`Cleaning temp directory '${this.temp_dir}'`);
+                await fs.rm(this.temp_dir, { recursive: true });
+            } else {
+                console.warn('Temp directory is not set');
+            }
         }
     }
 
-    public fail(msg: string): TestState {
+    private fail(msg: string): TestState {
         this.log.push(msg);
         this.message = msg;
         return TestState.FAILED;

@@ -11,31 +11,42 @@ export class Server {
     stdout: string;
     stderr: string;
 
+    failed: boolean;
+    message: string;
+
     public constructor(test: Test) {
         this.test = test;
         this.stdout = '';
         this.stderr = '';
+        this.failed = false;
+        this.message = '';
         this.script = path.resolve(test.temp_dir, 'server.mjs');
     }
 
     private handleServerMessage(message: any) {
-        this.test.log_verbose(JSON.stringify(message));
+        //this.test.log_verbose(JSON.stringify(message));
         if (message !== undefined
                 && typeof message === 'object'
+                && message.name === 'get_result_and_close'
                 && Array.isArray(message.log)
                 && typeof message.passed === 'boolean'
                 && typeof message.failed === 'boolean'
         ) {
             this.test.log.push(...message.log);
             if (message.failed) {
-                this.test.fail(message.log.pop());
+                this.fail(message.log.pop());
             }
             if (message.passed === false) {
-                this.test.fail('Server did not receive a PASS message');
+                this.fail('Server did not receive a PASS message');
             }
         } else {
-            this.test.fail(`message structure contained unexpected types`);
+            this.fail(`message structure contained unexpected types`);
         }
+    }
+    private fail(msg: string) {
+        this.failed = true;
+        this.message = msg;
+        this.test.log.push(msg);
     }
 
     public start(): Promise<void> {
@@ -50,13 +61,19 @@ export class Server {
                         'PORT_SOCKETS': this.test.tcp_port.toString(),
                         'PORT_SOCKETS_UDP': this.test.udp_port.toString(),
                         'SERVER_TEST_SUITE': 'enable',
-                        // TODO: add verbose logging
                     },
                 });
                 this.process.stdout.on('data', (msg: string) => { this.stdout += msg.toString(); });
                 this.process.stderr.on('data', (msg: string) => { this.stderr += msg.toString(); });
                 this.process.on('message', this.handleServerMessage.bind(this));
                 this.process.on('spawn', resolve);
+                this.process.send({
+                    name: 'config',
+                    config: {
+                        keep: this.test.config.keep,
+                        verbose: this.test.config.verbose,
+                    }
+                });
             } catch (e) {
                 reject(e);
             }
@@ -67,7 +84,7 @@ export class Server {
         return new Promise((resolve, reject) => {
             try {
                 if (this.process.exitCode === null) {
-                    this.process.send('get_result_and_close');
+                    this.process.send({ name: 'get_result_and_close' });
                     this.process.on('close', resolve);
                 } else {
                     resolve();
@@ -79,7 +96,7 @@ export class Server {
     }
 
     public ok() {
-        return this.process !== undefined && this.process.exitCode === 0 && this.stderr === '';
+        return this.process !== undefined && this.process.exitCode === 0 && this.stderr === '' && this.failed === false;
     }
 
     public kill() {
