@@ -179,6 +179,7 @@ const main = async function(): Promise<number> {
         await fs.mkdir(config.temp_folder_resolved);
     }
 
+    console.log(`Found ${config.resolved_files.length} test(s)`);
     const all_passed = await RunIwpoTests(config);
 
     return all_passed ? 0 : 1;

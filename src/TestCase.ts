@@ -65,6 +65,7 @@ export class Test {
     iwpo_timeout: number;
     is_gms: boolean;
     skip_execute: boolean;
+    expected_error: string[];
 
     tcp_port: number;
     udp_port: number;
@@ -196,7 +197,8 @@ export class Test {
         this.timeout = optional('configuration.timeout', number, 60);
         this.iwpo_timeout = optional('configuration.iwpo_timeout', number, 60);
         this.skip_execute = optional('configuration.skip_execute', bool, false);
-
+        this.expected_error = optional('configuration.expected_error', string_array, null);
+        
         // Resolve directories to absolute paths relative to this file
         this.folder = path.resolve(path.dirname(filename), this.folder);
     
@@ -302,8 +304,15 @@ export class Test {
         if (await Helper.pathExists(this.log_file)) {
             const fileContent = await fs.readFile(this.log_file, { encoding: 'utf-8' });
             this.log.push(...fileContent.split('\n'));
-        } else {
+
+            if (this.expected_error !== null && this.expected_error.join('\n').trim() != fileContent.trim().replace(/\r\n/g, '\n')) {
+                return this.fail(`game_errors.log differed from expected error`);
+            } else {
+                this.log.push('errors ok');
+            }
+        } else if (this.expected_error != null) {
             this.log_verbose(`Log file '${this.log_file}' was not found`);
+            return this.fail(`game_errors.log was expected but not created.`);
         }
 
         if (!await Helper.pathExists(this.result_file)) {

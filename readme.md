@@ -22,6 +22,7 @@ This will run .iwpotest files in order to test for features in I Wanna Play Onli
     iwpo_timeout=
     is_gms=
     skip_execute=
+    expected_error[]=
     
     [server_packages]
     0=TCP 01 01
@@ -46,6 +47,7 @@ iwpo_timeout | How long (in seconds) iwpo is allowed to try and convert the game
 timeout      | How long (in seconds) the output file is allowed to run before the test suite aborts the process and fails the test. Default: 60. 0 means no timeout (not recommended)
 is_gms       | Whether or not the GMS part of the tool should be copied and modified or only the gm8 part.
 skip_execute | Whether or not executing the output file should be skipped. If this is true, the test will succeed if the iwpo command exits with code 0 and the output file exists.
+expected_error | optional. If an error in game_errors.log is expected, this can be used to specify the expected file content. The array will be joined by \n, trimmed and then compared to the trimmed game_errors.log. \r\n newlines in game_errors.log are automatically converted to \n
 
 The arguments in the .iwpotest file **should not** contain the server= or --test-suite arguments as those will be generated and added by the test suite.
 An iwpo call might look like the following: ``iwpo.exe [game] [arguments] server=localhost,1000,1001 --test-suite``
