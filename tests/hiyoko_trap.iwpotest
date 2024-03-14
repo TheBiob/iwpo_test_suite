@@ -1,0 +1,134 @@
+; Tests for:
+;  Save sharing
+;  Saved message instance existing after receiving an online save
+;  Deleting online saves when player saves
+;  save-delay preventing multiple save messages to the server when game autosaves every frame
+;  save sharing between rooms
+
+; Not currently tested:
+;  gravity flipping (engine does not contain gravity flippers)
+;  other player being visible and correctly oriented when facing left/right etc
+;  chat messages
+;  disable online saves feature
+
+[configuration]
+folder=HiyokoTrap
+game=IWBTH.exe
+output=IWBTH_online.exe
+timeout=60
+is_gms=false
+skip_execute=false
+
+[server_packages]
+; save_game is the package we expect the client to send, it does not contain it's own name
+save_game=TCP 05 00 000001EC 375.3 0070
+save_game2=TCP 05 00 000001D1 215.4 0094
+
+; package from another player that saved that the server would send, which additionally contains the name of the player
+saved_333_439=TCP 05 00 "test2" 0000014D 439.4 0095
+; room 112 (0x70) => rStage01
+; room 148 (0x94) => Stage02
+; room 149 (0x95) => Stage03
+
+[events]
+$$pre_worldCreate
+	@name="Test";
+	@password="";
+	@race=false;
+
+$$test_GameBegin
+	if (@vars_loaded == false) {
+		ds_list_add(@vars, 0);
+	}
+	@step = ds_list_find_value(@vars, 0);
+
+$$test_Step
+	@step += 1;
+	ds_list_replace(@vars, 0, @step);
+
+	if (@step == 5) {
+		room_goto(rStage01); // Autosaves, we need to wait out the save delay in order to expect another save message
+	} else if (@step == 10) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@SERVER_EXPECT("save_game");
+		with (player) {
+			x = 492;
+			y = 375.3;
+		}
+		// Same thing the save point does, though in Step instead of On Collision with Bullet
+		saveGame(0);
+	} else if (@step == 12) {
+		@SERVER_RESPOND("saved_333_439");
+	} else if (@step == 14) {
+		if (instance_number(@playerSaved) != 1) {
+			@ASSERTEQ(1, instance_number(@playerSaved), "saved instance count", false); // Will fail
+		} else {
+			@ASSERTEQ("test2 saved!", @playerSaved.@text, "saved text", false);
+		}
+		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
+		sound_stop_all();
+		saveGame(true);
+		loadGame();
+	} else if (@step == 16) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@ASSERTEQ(333,   player.x, "player x 1", false);
+		@ASSERTEQ(439.4, player.y, "player y 1", false);
+		@ASSERTEQ(Stage03, room, "room 1", false);
+	} else if (@step == 18) {
+		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
+		sound_stop_all();
+		saveGame(true);
+		loadGame();
+	} else if (@step == 20) {
+		// We loaded again without saving, player should be back on the original save
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@ASSERTEQ(492,   player.x, "player x 2", false);
+		@ASSERTEQ(375.3, player.y, "player y 2", false); // Seems like falling starts 1 frame later when loading an online save? Would've expected to see 1760+0.4+0.4*2 here instead.
+		@ASSERTEQ(rStage01, room,  "room 2", false);		
+
+		@SERVER_RESPOND("saved_333_439");
+	} else if (@step == 22) {
+		@ASSERT(file_exists("tempOnline2"), "tempOnline2 does not exist", false);
+		// Same thing the save point does, though in Step instead of On Collision with Bullet
+		saveGame(0);
+	} else if (@step == 24) {
+		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
+		sound_stop_all();
+		saveGame(true);
+		loadGame();
+	} else if (@step == 26) {
+		// We received an online save, but then saved ourselves, reloading should take us to our save
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@ASSERTEQ(492,   player.x, "player x 3", false);
+		@ASSERTEQ(375.3, player.y, "player y 3", false);
+		@ASSERTEQ(rStage01, room, "room 3", false);		
+	} else if (@step == 28) {
+		room_goto(Stage02);
+		with (player) {
+			x = 465;
+			y = 215.4;
+			xprevious = x;
+			yprevious = y;
+		}
+		// Note: I was considering changing this behavior to send a new save every couple of frames instead of only once.
+		// This test will break when that happens and needs to be adjusted.
+		// First a save_game2 is expected (once, not being repeated for every frame)
+		@SERVER_EXPECT("save_game2");
+		// then a save_game after a short delay of not saving and moving back to the 192, 1760 location
+		@SERVER_EXPECT("save_game");
+	} else if (@step > 30 && @step < 80) {
+		// Save every frame for 50 frames, to test for the save delay working and autosaves like that not kicking the player
+		saveGame(0); // Same thing the save point does, though in Step instead of On Collision with Bullet
+	} else if (@step == 85) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		room_goto(rStage01)
+		with (player) {
+			x = 492;
+			y = 375.3;
+		}
+	} else if (@step == 87) {
+		// Same thing the save point does, though in Step instead of On Collision with Bullet
+		saveGame(0);
+	} else if (@step == 90) {
+		@PASS();
+	}

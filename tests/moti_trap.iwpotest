@@ -28,8 +28,6 @@ saved_384_1760=TCP 05 00 "test2" 00000180 1760.0 008B
 ; room 112 (0x70) => rStage01
 ; room 139 (0x8B) => rBossBigCherry_sample
 
-HEARTBEAT=TCP 02
-
 [events]
 $$pre_worldCreate
 	@name="Test";
@@ -123,8 +121,6 @@ $$test_Step
 	} else if (@step > 30 && @step < 80) {
 		// Save every frame for 50 frames, to test for the save delay working and autosaves like that not kicking the player
 		saveGame(0); // Same thing the save point does, though in Step instead of On Collision with Bullet
-
-		// TODO: Test that only one save package is send.
 	} else if (@step == 85) {
 		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
 		with (player) {
