@@ -33,7 +33,14 @@ export class Config {
         this.help = false;
         this.iwpo_base_folder = undefined;
         this.temp_folder = undefined;
-        this.test_server = '127.0.0.1'; // Currently not configureable from the CLI. Not sure if that'd be useful.
+        this.test_server = '127.0.0.1'; // Currently not configurable from the CLI. Not sure if that'd be useful.
+    }
+
+    public simplified(): object {
+        return {
+            keep: this.keep,
+            verbose: this.verbose,
+        }
     }
 
     /**

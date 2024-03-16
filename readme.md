@@ -78,6 +78,20 @@ The $$event marker defines what GML code to run when iwpo code is executed. [eve
 IWPO will not set any variables that would normally require a user input like @name, @password or @race in this mode. Those should be set by the $$pre_worldCreate code.  
 Everything after a (or up until the next) $$ marker will be copied into the relevant script that IWPO applies. IWPO's post processing will also be applied to this code so you can use @ for the __ONLINE_ placeholder, it is however recommended that you don't use #if's unless to check if they are what is expected for this game.
 
+### Scripts
+$$script_[name] events can be used to create scripts in the resulting executable. These scripts will be added using the GML Prefix so you can call them by prefixing them with an @ symbol.
+As an example, this defines the LOAD script to be used in the $$test_Step event:
+
+    $$script_LOAD
+        // Load the game, the way the game does it
+        sound_stop_all();
+        saveGame(0);
+        loadGame(0);
+
+    $$test_Step
+        @LOAD(); // Call load script
+
+
 ## Online Test Object
 IWPO will also create a test object called "__ONLINE_TESTOBJ" which is created at the end of the worldCreate event. This object has a Game Begin and normal Step event.
 It will also automatically create and preserve a ds_list in the variable "@vars" by loading the index from a file in Game Begin or creating a new list and saving that index in a file if it doesn't yet exist.
@@ -95,7 +109,7 @@ To run code in these events the following events are available:
 @SERVER_EXPECT(package)                 | Tells the server to expect the next package to be some specified package.
 @SERVER_RESPOND(package)                | Tells the server to send the current client some specified package.
 @ASSERT(assertion, text, abort)         | Asserts that a condition is true. If \<assertion\> is not true then it will fail the test and print \<text\> in the log then abort if \<abort\> is true.
-ASSERTEQ(expected, actual, text, abort) | Asserts that \<expected\> equals \<actual\>, if not it will fail the test and print "\<text\>: Expected '\<exected\>' bit got '\<actual\>'" in the log, then abort if \<abort\> is true.
+ASSERTEQ(expected, actual, text, abort) | Asserts that \<expected\> equals \<actual\>, if not it will fail the test and print "\<text\>: Expected '\<exected\>' but got '\<actual\>'" in the log, then abort if \<abort\> is true.
 @PASS()                                 | Writes an "ok" result and then calls game_end(); It will not try to delete any potential temp files the game may have created. If this is necessary, do so before calling this script.
 
 The output executable should create 2 files with the following purposes:

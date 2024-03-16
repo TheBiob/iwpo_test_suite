@@ -3,9 +3,10 @@ import { readFile } from "fs/promises";
 import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
+import * as proc from "child_process"
 
 import { Config } from ".";
-import { IwpoEvent } from "./IwpoEvent";
+import { EventOccurrence, IwpoEvent } from "./IwpoEvent";
 import { ServerPackage } from "./ServerPackage";
 import { Helper } from "./Helper";
 import { Server } from "./Server";
@@ -18,7 +19,8 @@ const GM8_FILES: string[] = [ // Files/directories that are GM8 specific and don
     'gml'
 ]
 const SKIP_FILES: string[] = [ // Files/directories that can always be skipped
-    'mac', 'tmp'
+    'mac', 'tmp',
+    'iwpo.exe', // launcher isn't used, we fork data/index.js directly to establish a communication channel
 ]
 
 enum TestState {
@@ -213,7 +215,7 @@ export class Test {
 
         this.events = IwpoEvent.defaultEvents(this);
         if (fileContents.length > 1) {
-            const matches = [...fileContents[1].matchAll(/^\$\$(?<condition>pre|post|test)_(?<filename>\w*?)\s*?$/gms)];
+            const matches = [...fileContents[1].matchAll(/^\$\$(?<condition>pre|post|test|script)_(?<filename>\w*?)\s*?$/gms)];
             for (let i = 0; i < matches.length; i++) {
                 const match = matches[i];
 
@@ -265,20 +267,11 @@ export class Test {
         }
     }
     private async _run(): Promise<TestState> {
-        const result = await Helper.exec(path.resolve(this.temp_dir, 'iwpo.exe'), this.temp_dir, this.config.verbose, this.iwpo_timeout,
-            path.resolve(this.temp_dir, this.game),
-            ...this.args,
-            '--test-suite',
-            `server=${this.config.test_server},${this.tcp_port},${this.udp_port}`,
-        );
+        const result = await this.runIwpo();
 
         this.log.push(result.out);
         if (result.err !== '') {
             this.log.push(result.err);
-        }
-
-        if (result.code !== 0) {
-            return this.fail('IWPO exited with code ' + result.code);
         }
 
         if (!await Helper.pathExists(this.output_resolved)) {
@@ -357,5 +350,57 @@ export class Test {
         if (this.config.verbose && msg !== '') {
             console.log(`[${this.name}] ${msg}`);
         }
+    }
+
+    private getScripts(): object {
+        const scripts = {};
+        for (const event of this.events) {
+            const gml = event.gml.get(EventOccurrence.script);
+            if (gml !== undefined) {
+                scripts[event.file] = gml;
+            }
+        }
+        return scripts;
+    }
+
+    private runIwpo(): Promise<{ out: string; err: string; }> {
+        return new Promise((resolve, reject) => {
+            try {
+                const std = {
+                    out: '',
+                    err: '',
+                };
+                const args = [
+                    path.resolve(this.temp_dir, this.game),
+                    ...this.args,
+                    '--test-suite',
+                    `server=${this.config.test_server},${this.tcp_port},${this.udp_port}`,
+                ];
+                this.log_verbose(`Running iwpo with args "${args.join('", "')}"`);
+                const process = proc.fork(path.resolve(this.temp_dir, 'data', 'index.js'), args,
+                    // Options
+                    {
+                        cwd: this.temp_dir,
+                        timeout: this.iwpo_timeout*1000,
+                        silent: true,
+                        execArgv: ['--max_old_space_size=8192'],
+                        env: {},
+                    }
+                );
+                process.stdout.on('data', ((msg: string) => { this.log_verbose(msg.toString().trim()); std.out += msg.toString(); }).bind(this));
+                process.stderr.on('data', ((msg: string) => { this.log_verbose(msg.toString().trim()); std.err += msg.toString(); }).bind(this));
+                process.on('exit', () => {
+                    resolve(std);
+                });
+                process.on('error', reject);
+                process.send({
+                    name: 'run',
+                    config: this.config.simplified(),
+                    scripts: this.getScripts(),
+                });
+            } catch (e) {
+                reject(e);
+            }
+        });
     }
 }

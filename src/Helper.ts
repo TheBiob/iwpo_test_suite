@@ -2,7 +2,7 @@ import * as proc from "child_process"
 import fs from "fs/promises";
 
 export class Helper {
-    static port: number = 8002;
+    static port: number = 1001;
     
     /**
      * Checks whether or not a file or directory exists at a given path.

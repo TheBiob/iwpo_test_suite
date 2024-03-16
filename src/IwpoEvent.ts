@@ -4,8 +4,8 @@ import * as fs from "fs/promises";
 import { Helper } from "./Helper";
 import { Test } from "./TestCase";
 
-enum EventOccurrence {
-    pre, post, test
+export enum EventOccurrence {
+    pre, post, test, script
 }
 const defaultTestFileCode = {
     'Step': ``,
@@ -53,11 +53,15 @@ export class IwpoEvent {
             occurrence = EventOccurrence.post;
         } else if (condition === 'test') {
             occurrence = EventOccurrence.test;
+        } else if (condition === 'script') {
+            occurrence = EventOccurrence.script;
         } else {
             throw new Error(`Unimplemented event occurrence '${condition}'`);
         }
 
-        if (occurrence === EventOccurrence.test) {
+        if (occurrence === EventOccurrence.script) {
+            // Ok, we will just pass it to iwpo as is
+        } else if (occurrence === EventOccurrence.test) {
             if (defaultTestFileCode[this.file] === undefined) {
                 throw new Error(`Test File '${this.file}' is unknown`);
             }

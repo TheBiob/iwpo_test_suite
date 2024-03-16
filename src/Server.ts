@@ -69,10 +69,7 @@ export class Server {
                 this.process.on('spawn', resolve);
                 this.process.send({
                     name: 'config',
-                    config: {
-                        keep: this.test.config.keep,
-                        verbose: this.test.config.verbose,
-                    }
+                    config: this.test.config.simplified(),
                 });
             } catch (e) {
                 reject(e);
