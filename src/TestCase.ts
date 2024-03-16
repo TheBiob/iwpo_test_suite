@@ -20,7 +20,6 @@ const GM8_FILES: string[] = [ // Files/directories that are GM8 specific and don
 ]
 const SKIP_FILES: string[] = [ // Files/directories that can always be skipped
     'mac', 'tmp',
-    'iwpo.exe', // launcher isn't used, we fork data/index.js directly to establish a communication channel
 ]
 
 enum TestState {
@@ -242,8 +241,8 @@ export class Test {
         this.log_verbose(`Copying '${this.folder}' to new temp directory '${this.temp_dir}'`);
         await fs.cp(this.folder, this.temp_dir, { recursive: true });
 
-        this.log_verbose(`Copying iwpo.exe, server.js and data directory`);
-        await fs.cp(this.config.iwpo_exe, path.join(this.temp_dir, 'iwpo.exe'));
+        this.log_verbose(`Copying iwpo files`);
+        //await fs.cp(this.config.iwpo_exe, path.join(this.temp_dir, 'iwpo.exe'));  // launcher isn't used, we fork data/index.js directly to establish a communication channel
         await fs.cp(this.config.server_js_resolved, path.join(this.temp_dir, 'server.mjs'));
         await fs.cp(this.config.iwpo_data, path.join(this.temp_dir, 'data'), { recursive: true, filter(source, _destination) {
             const name = path.basename(source);
