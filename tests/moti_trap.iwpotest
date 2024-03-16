@@ -29,6 +29,28 @@ saved_384_1760=TCP 05 00 "test2" 00000180 1760.0 008B
 ; room 139 (0x8B) => rBossBigCherry_sample
 
 [events]
+$$script_ASSERT_LOCATION_1
+	@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+	@ASSERTEQ(384,    player.x, "player x 1", false);
+	@ASSERTEQ(1760.4, player.y, "player y 1", false);
+	@ASSERTEQ(rBossBigCherry_sample, room, "room 1", false);
+
+$$script_ASSERT_LOCATION_2
+	@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+	@ASSERTEQ(192,    player.x, "player x 2", false);
+	@ASSERTEQ(1760.4, player.y, "player y 2", false); // Seems like falling starts 1 frame later when loading an online save? Would've expected to see 1760+0.4+0.4*2 here instead.
+	@ASSERTEQ(rStage01, room, "room 2", false);		
+
+$$script_ASSERT_LOCATION_3
+	@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+	@ASSERTEQ(192, player.x, "player x 3", false);
+	// Seems like here the player is falling for 3 frames? why was he falling for 1 frame the other times?
+	// none of this makes sense to me but also it doesn't matter enough how many frames exactly the player fell.
+	// If it's off by one or 2 when loading an online save, no one is going to notice.
+	// Could be a problem if the online save logic changes but I guess that can be dealt with whenever this test breaks.
+	@ASSERTEQ(1760+0.4+0.4*2+0.4*3, player.y, "player y 3", false);
+	@ASSERTEQ(rStage01, room, "room 3", false);		
+
 $$pre_worldCreate
 	@name="Test";
 	@password="";
@@ -68,10 +90,7 @@ $$test_Step
 		saveGame(true);
 		loadGame();
 	} else if (@step == 16) {
-		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
-		@ASSERTEQ(384,    player.x, "player x 1", false);
-		@ASSERTEQ(1760.4, player.y, "player y 1", false);
-		@ASSERTEQ(rBossBigCherry_sample, room, "room 1", false);
+		@ASSERT_LOCATION_1();
 	} else if (@step == 18) {
 		// Same thing pressing R does, though in Step instead of World/Button 'R' Pressed
 		sound_stop_all();
@@ -79,11 +98,7 @@ $$test_Step
 		loadGame();
 	} else if (@step == 20) {
 		// We loaded again without saving, player should be back on the original save
-		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
-		@ASSERTEQ(192,    player.x, "player x 2", false);
-		@ASSERTEQ(1760.4, player.y, "player y 2", false); // Seems like falling starts 1 frame later when loading an online save? Would've expected to see 1760+0.4+0.4*2 here instead.
-		@ASSERTEQ(rStage01, room, "room 2", false);		
-
+		@ASSERT_LOCATION_2();
 		@SERVER_RESPOND("saved_384_1760");
 	} else if (@step == 22) {
 		@ASSERT(file_exists("tempOnline2"), "tempOnline2 does not exist", false);
@@ -96,14 +111,7 @@ $$test_Step
 		loadGame();
 	} else if (@step == 26) {
 		// We received an online save, but then saved ourselves, reloading should take us to our save
-		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
-		@ASSERTEQ(192, player.x, "player x 3", false);
-		// Seems like here the player is falling for 3 frames? why was he falling for 1 frame the other times?
-		// none of this makes sense to me but also it doesn't matter enough how many frames exactly the player fell.
-		// If it's off by one or 2 when loading an online save, no one is going to notice.
-		// Could be a problem if the online save logic changes but I guess that can be dealt with whenever this test breaks.
-		@ASSERTEQ(1760+0.4+0.4*2+0.4*3, player.y, "player y 3", false);
-		@ASSERTEQ(rStage01, room, "room 3", false);		
+		@ASSERT_LOCATION_3();
 	} else if (@step == 28) {
 		// Location is inside a block so we don't expect x/y to change when the saving starts happening.
 		with (player) {
