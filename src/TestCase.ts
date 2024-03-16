@@ -375,7 +375,7 @@ export class Test {
                     '--test-suite',
                     `server=${this.config.test_server},${this.tcp_port},${this.udp_port}`,
                 ];
-                this.log_verbose(`Running iwpo with args "${args.join('", "')}"`);
+                this.log_verbose(`Running iwpo with args "${args.join('" "')}"`);
                 const process = proc.fork(path.resolve(this.temp_dir, 'data', 'index.js'), args,
                     // Options
                     {
