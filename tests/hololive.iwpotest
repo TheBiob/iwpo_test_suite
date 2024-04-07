@@ -15,8 +15,6 @@
 folder=hololive
 game=I wanna be the Hololive(仮名).exe
 output=I wanna be the Hololive(仮名)_online.exe
-timeout=60
-iwpo_timeout=120
 is_gms=false
 skip_execute=false
 

@@ -16,7 +16,6 @@ folder=stop_the_crystal
 game=i wanna stop the crystal.exe
 output=i wanna stop the crystal_online.exe
 args[]=--external-dll
-timeout=60
 is_gms=false
 skip_execute=false
 

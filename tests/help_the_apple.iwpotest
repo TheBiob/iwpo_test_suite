@@ -15,7 +15,6 @@
 folder=help_the_apple
 game=I wanna help the Apple.exe
 output=I wanna help the Apple_online.exe
-timeout=60
 is_gms=false
 skip_execute=false
 

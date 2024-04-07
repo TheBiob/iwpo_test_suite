@@ -43,8 +43,8 @@ folder       | The folder with the exe to test for. This folder will be copied t
 game         | The name of the exe to be converted.
 args[]       | optional. Arguments to add to the iwpo command. One per line.
 output       | The generated file that will be (note: this is the output file that iwpo.exe generates, you can not choose an arbitrary name here, usually this will be \<game\>_online.exe)
-iwpo_timeout | How long (in seconds) iwpo is allowed to try and convert the game before the test suite aborts the process and fails the test. Default: 60. 0 means no timeout (not recommended)
-timeout      | How long (in seconds) the output file is allowed to run before the test suite aborts the process and fails the test. Default: 60. 0 means no timeout (not recommended)
+iwpo_timeout | How long (in seconds) iwpo is allowed to try and convert the game before the test suite aborts the process and fails the test. Default: 20. 0 means no timeout (not recommended)
+timeout      | How long (in seconds) the output file is allowed to run before the test suite aborts the process and fails the test. Default: 20. 0 means no timeout (not recommended)
 is_gms       | Whether or not the GMS part of the tool should be copied and modified or only the gm8 part.
 skip_execute | Whether or not executing the output file should be skipped. If this is true, the test will succeed if the iwpo command exits with code 0 and the output file exists.
 expected_error | optional. If an error in game_errors.log is expected, this can be used to specify the expected file content. The array will be joined by \n, trimmed and then compared to the trimmed game_errors.log. \r\n newlines in game_errors.log are automatically converted to \n
@@ -72,11 +72,11 @@ The test suite will then save these messages as \<key\>.bin and server.js will r
     saved1=TCP 05 00 "test player" 00000000 100.0 0001
 
 ## [events] section  
-Everything past this section is parsed as GML events and modify the GML files that IWPO applies.
+Everything past this section is parsed separately and will modify the GML files that IWPO applies.
 
 The $$event marker defines what GML code to run when iwpo code is executed. [event] can be \<pre/post/test\>_\<iwpo script name\>. For example: $$pre_worldCreate or $$post_saveGame. The "test" section refers to events run in the test object, refer to the section "Online Test Object" for more information.  
-IWPO will not set any variables that would normally require a user input like @name, @password or @race in this mode. Those should be set by the $$pre_worldCreate code.  
-Everything after a (or up until the next) $$ marker will be copied into the relevant script that IWPO applies. IWPO's post processing will also be applied to this code so you can use @ for the __ONLINE_ placeholder, it is however recommended that you don't use #if's unless to check if they are what is expected for this game.
+IWPO will not set any variables that would normally require user input like @name, @password or @race in test mode. Those should be set by the $$pre_worldCreate code.  
+Everything after a (or up until the next) $$ marker will be copied into the relevant script that IWPO applies. IWPO's post processing will also be applied to this code so you can use @ for the __ONLINE_ placeholder, it is however recommended that you only use #if's to check whether or not GML defines are what is expected.
 
 ### Scripts
 $$script_[name] events can be used to create scripts in the resulting executable. These scripts will be added using the GML Prefix so you can call them by prefixing them with an @ symbol.

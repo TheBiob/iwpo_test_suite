@@ -15,7 +15,6 @@
 folder=HiyokoTrap
 game=IWBTH.exe
 output=IWBTH_online.exe
-timeout=60
 is_gms=false
 skip_execute=false
 

@@ -15,7 +15,6 @@
 folder=moti_trap
 game=moti_trapv0.4.exe
 output=moti_trapv0.4_online.exe
-timeout=60
 is_gms=false
 skip_execute=false
 

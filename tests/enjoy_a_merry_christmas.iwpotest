@@ -15,7 +15,6 @@
 folder=enjoy_a_merry_christmas
 game=I wanna enjoy a Merry Christmas.exe
 output=I wanna enjoy a Merry Christmas_online.exe
-timeout=60
 is_gms=false
 skip_execute=false
 
