@@ -80,7 +80,7 @@ export class Server {
     public async stop(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                if (this.process.exitCode === null) {
+                if (this.process.exitCode === null && this.process.connected) {
                     this.process.send({ name: 'get_result_and_close' });
                     this.process.on('close', resolve);
                 } else {
@@ -93,7 +93,7 @@ export class Server {
     }
 
     public ok() {
-        return this.process !== undefined && this.process.exitCode === 0 && this.stderr === '' && this.failed === false;
+        return this.process !== undefined && this.process.killed === false && this.process.exitCode === 0 && this.stderr === '' && this.failed === false;
     }
 
     public kill() {

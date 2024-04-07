@@ -195,7 +195,7 @@ export class Test {
         // Optional settings
         this.name = optional('configuration.name', string, this.name);
         this.args = optional('configuration.args', string_array, []);
-        this.timeout = optional('configuration.timeout', number, 20);
+        this.timeout = optional('configuration.timeout', number, 30);
         this.iwpo_timeout = optional('configuration.iwpo_timeout', number, 20);
         this.skip_execute = optional('configuration.skip_execute', bool, false);
         this.expected_error = optional('configuration.expected_error', string_array, null);
