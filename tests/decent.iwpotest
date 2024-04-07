@@ -1,0 +1,159 @@
+; Tests for:
+;  Save sharing
+;  Saved message instance existing after receiving an online save
+;  Deleting online saves when player saves
+;  save-delay preventing multiple save messages to the server when game autosaves every frame
+;  save sharing between rooms
+
+; Not currently tested:
+;  gravity flipping (game does not use gravity flippers, engine supports it however)
+;  other player being visible and correctly oriented when facing left/right etc
+;  chat messages
+;  disable online saves feature
+
+; Notes:
+;  Last room would normally lag because it's constantly saving and this game creates a screenshot on every save.
+;    That part of the test should maybe be removed as this engine is unlikely to have constant autosaves because of that.
+;    For now I just set player.saveflag to 0 after calling saveGame in order to prevent that.
+
+[configuration]
+folder=be_decent
+game=I wanna be decent.exe
+output=I wanna be decent_online.exe
+args[]=--external-dll
+args[]=--no-foxwriting
+is_gms=false
+skip_execute=false
+
+[server_packages]
+; The package we expect the client to send after saving at MOVE_LOCATION_1
+save_game=TCP 05 00 000003E7 471.4 008F
+; The package we expect the client to send after saving at MOVE_LOCATION_2
+save_game2=TCP 05 00 0000014D 471.4 0072
+; the package from another player that saved that the server would send, which additionally contains the name of the player
+test2_saved=TCP 05 00 "test2" 00000064 471.4 0098
+; room 143  (0x10) => rStage01_1
+; room 152  (0x98) => rStage01_2
+; room 114  (0x72) => roomend
+
+[events]
+$$script_ASSERT_LOCATION
+/// @ASSERT_LOCATION(name, x, y, room);
+	@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+	@ASSERTEQ(argument1, player.x, "player x " + string(argument0), false);
+	@ASSERTEQ(argument2, player.y, "player y " + string(argument0), false);
+	@ASSERTEQ(argument3, room, "room " + string(argument0), false);
+
+$$script_ASSERT_LOCATION_TEST2_SAVED
+// The location we expect after loading the test2_saved online save
+	@ASSERT_LOCATION("TEST2_SAVED", 100, 471.4, rStage01_2);
+
+$$script_ASSERT_LOCATION_ORIG
+// The location we expect after saving at MOVE_LOCATION_1, loading test2_saved once, then loading again.
+	@ASSERT_LOCATION("original", 999, 471.4, rStage01_1);
+
+$$script_ASSERT_LOCATION_ORIG_RELOAD
+// The location we expect after receiving test2_saved, then saving ourselves at MOVE_LOCATION_1.
+	@ASSERT_LOCATION_ORIG();
+
+$$script_MOVE_LOCATION_1
+// location for save_game
+	room_goto(rStage01_1);
+	with (player) {
+		x = 999;
+		y = 471.4;
+		xprevious = x;
+		yprevious = y;
+	}
+	
+$$script_MOVE_LOCATION_2
+// location for save_game2
+	room_goto(roomend);
+	with (player) {
+		x = 333;
+		y = 471.4;
+		xprevious = x;
+		yprevious = y;
+	}
+
+$$script_SAVE
+// Same thing that the save point does, though in Step instead of On Collision with Bullet
+	saveGame();
+	player.saveflag = 0; // Prevent screenshots from being updated. Mitigates lag caused by the "autosave on every frame" test at the end
+
+$$script_LOAD
+// Same thing that pressing R does, though in TESTOBJ Step instead of World Step
+	loadGame();
+
+$$pre_worldCreate
+	@name="Test";
+	@password="";
+	@race=false;
+
+$$test_GameBegin
+	if (@vars_loaded == false) {
+		ds_list_add(@vars, 0);
+	}
+	@step = ds_list_find_value(@vars, 0);
+
+$$test_Step
+	@step += 1;
+	ds_list_replace(@vars, 0, @step);
+
+	if (@step == 2) {
+		// Menu
+		global.savenum = 1;
+		global.difficulty = 0;
+		
+		room_goto(global.Game_Start_Room);
+	} else if (@step == 8) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@MOVE_LOCATION_1();
+	} else if (@step == 10) {
+		@SERVER_EXPECT("save_game");
+		@SAVE();
+	} else if (@step == 12) {
+		@SERVER_RESPOND("test2_saved");
+	} else if (@step == 14) {
+		if (instance_number(@playerSaved) != 1) {
+			@ASSERTEQ(1, instance_number(@playerSaved), "saved instance count", false); // Will fail
+		} else {
+			@ASSERTEQ("test2 saved!", @playerSaved.@text, "saved text", false);
+		}
+		@LOAD();
+	} else if (@step == 16) {
+		@ASSERT_LOCATION_TEST2_SAVED();
+	} else if (@step == 18) {
+		@LOAD();
+	} else if (@step == 20) {
+		// We loaded again without saving, player should be back on the original save
+		@ASSERT_LOCATION_ORIG();
+		@SERVER_RESPOND("test2_saved");
+	} else if (@step == 22) {
+		@ASSERT(file_exists("tempOnline2"), "tempOnline2 does not exist", false);
+		@SAVE();
+	} else if (@step == 24) {
+		@LOAD();
+	} else if (@step == 26) {
+		// We received an online save, but then saved ourselves, reloading should take us to our save
+		@ASSERT_LOCATION_ORIG_RELOAD();
+	} else if (@step == 28) {
+		// Location is inside a block so we don't expect x/y to change when the saving starts happening.
+		@MOVE_LOCATION_2();
+		// Note: I was considering changing this behavior to send a new save every couple of frames instead of only once.
+		// This test will break when that happens and needs to be adjusted.
+		// First a save_game2 is expected (once, not being repeated for every frame)
+		@SERVER_EXPECT("save_game2");
+		// then a save_game after a short delay of not saving and moving back to the 192, 1760 location
+		@SERVER_EXPECT("save_game");
+	} else if (@step > 30 && @step < 80) {
+		// Save every frame for 50 frames, to test for the save delay working and autosaves like that not kicking the player
+		@SAVE();
+	} else if (@step == 85) {
+		@ASSERT(instance_exists(player), "object 'player' does not exist", true);
+		@MOVE_LOCATION_1();
+	} else if (@step == 86) {
+		@SAVE();
+	} else if (@step == 90) {
+		@PASS();
+	}
