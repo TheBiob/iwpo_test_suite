@@ -137,7 +137,7 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
                     i++;
                     const num = Number(args[i]);
                     if (!Number.isInteger(num) || Number.isNaN(num) || num < 0) {
-                        console.log(`Invalid number ${args[i]}. --max-parallel must be a positive finite integer or 0 for infinite`);
+                        console.log(`Invalid number ${args[i]}. --max-parallel must be a positive finite integer or 0 for unlimited`);
                     } else {
                         config.max_parallel = num;
                     }
@@ -168,7 +168,7 @@ const PrintHelp = async function() {
 --server-script <file> - Sets the server script file to copy and start. Default: iwpo/server.js
 --iwpo-base-dir <dir>  - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
 --temp-dir <dir>       - Sets the temporary directory to copy to. Default: temp/
---max-parallel <count> - Sets how many tests are allowed to run in parallel. 0 means infinite. Default: 1
+--max-parallel <count> - Sets how many tests are allowed to run in parallel. 0 means unlimited. Default: 1
 --keep, -k             - Keeps generated temporary directories
 --verbose, -v          - Enables verbose logging
 `);
