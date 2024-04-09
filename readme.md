@@ -6,10 +6,9 @@ This will run .iwpotest files in order to test for features in I Wanna Play Onli
     --file <.iwpotest file> - Which .iwpotest file(s) to read and execute. Can be used multiple times and also supports wildcards like *.iwpotest. If a file is specified multiple times, it will only be run once.
     --iwpo-base-dir <dir>   - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
     --temp-dir <dir>        - Sets the Temporary directory to copy to. Default: temp/
+    --max-parallel <count>  - Sets how many tests are allowed to run in parallel. 0 means infinite. Default: 1.
     --keep, -k              - Keeps generated temporary directories
     --verbose, -v           - Enables verbose logging
-    |extra stuff to add later|
-    --max-paralell <num>    - How many tests are allowed to run at any one time. Default 1 (no multithreading)
 
 ## File Structure
     [configuration]

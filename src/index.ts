@@ -10,6 +10,7 @@ export class Config {
     files: Array<string>;
     verbose: boolean;
     keep: boolean;
+    max_parallel: number;
     help: boolean;
 
     iwpo_base_folder: string;
@@ -30,6 +31,7 @@ export class Config {
         this.files = [];
         this.verbose = false;
         this.keep = false;
+        this.max_parallel = 1;
         this.help = false;
         this.iwpo_base_folder = undefined;
         this.temp_folder = undefined;
@@ -127,6 +129,20 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
                     config.server_js = args[i];
                 }
                 break;
+            case '--max-parallel':
+                if (i == args.length-1) {
+                    console.log('Missing count argument to --max-parallel');
+                    config.help = true;
+                } else {
+                    i++;
+                    const num = Number(args[i]);
+                    if (!Number.isInteger(num) || Number.isNaN(num) || num < 0) {
+                        console.log(`Invalid number ${args[i]}. --max-parallel must be a positive finite integer or 0 for infinite`);
+                    } else {
+                        config.max_parallel = num;
+                    }
+                }
+                break;
             case '-k':
             case '--keep':
                 config.keep = true;
@@ -152,6 +168,7 @@ const PrintHelp = async function() {
 --server-script <file> - Sets the server script file to copy and start. Default: iwpo/server.js
 --iwpo-base-dir <dir>  - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
 --temp-dir <dir>       - Sets the temporary directory to copy to. Default: temp/
+--max-parallel <count> - Sets how many tests are allowed to run in parallel. 0 means infinite. Default: 1
 --keep, -k             - Keeps generated temporary directories
 --verbose, -v          - Enables verbose logging
 `);
@@ -186,8 +203,12 @@ const main = async function(): Promise<number> {
         await fs.mkdir(config.temp_folder_resolved);
     }
 
+    console.time('run_iwpo_tests');
+    
     console.log(`Found ${config.resolved_files.length} test(s)`);
     const all_passed = await RunIwpoTests(config);
+
+    console.timeEnd('run_iwpo_tests');
 
     return all_passed ? 0 : 1;
 }

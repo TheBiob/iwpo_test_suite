@@ -11,12 +11,21 @@ export async function RunIwpoTests(config: Config): Promise<boolean> {
         })
     );
 
-    for (const test of tests) {
-        console.log(`Running test: ${test.name}`);
-        if (test.can_execute()) await test.Initialize();
-        if (test.can_execute()) await test.Run();
-        await test.Clean();
-    }
+    let max_runners = config.max_parallel == 0 ? tests.length : Math.min(config.max_parallel, tests.length);
+
+    console.log(`Executing tests with ${max_runners} in parallel...`);
+    await Promise.all(new Array<IterableIterator<Test>>(max_runners).fill(tests.values()).map(async iter => {
+        for (const test of iter) {
+            console.log(`[${test.name}] Initializing...`);
+            if (test.can_execute())
+                await test.Initialize();
+            console.log(`[${test.name}] Running...`);
+            if (test.can_execute())
+                await test.Run();
+            console.log(`[${test.name}] Cleaning...`);
+            await test.Clean();
+        }
+    }));
 
     let passed = 0;
     for (const test of tests) {
