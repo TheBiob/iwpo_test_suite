@@ -18,6 +18,7 @@ output=I wanna save Peach V1.33_online.exe
 args[]=--external-dll
 args[]=--define:iwpo.tempExe=-
 args[]=--define:iwpo.saveExe=-
+; args[]=--define:iwpo.temp_file=false ; Note: this game also works with no_temp_file=true since it doesn't actually need it but the current code expects the temp file. There was also a bug found because of that so I'll leave it like this for now
 is_gms=false
 skip_execute=false
 
@@ -46,11 +47,7 @@ $$script_ASSERT_LOCATION_TEST2_SAVED
 
 $$script_ASSERT_LOCATION_ORIG
 // The location we expect after saving at MOVE_LOCATION_1, loading test2_saved once, then loading again.
-	@ASSERT_LOCATION("original", 256, 1623.4, room1st4);
-
-$$script_ASSERT_LOCATION_ORIG_RELOAD
-// The location we expect after receiving test2_saved, then saving ourselves at MOVE_LOCATION_1.
-	@ASSERT_LOCATION_ORIG();
+	@ASSERT_LOCATION(argument0, 256, 1623.4, room1st4);
 
 $$script_MOVE_LOCATION_1
 // location for save_game
@@ -129,7 +126,7 @@ $$test_Step
 		@LOAD();
 	} else if (@step == 20) {
 		// We loaded again without saving, player should be back on the original save
-		@ASSERT_LOCATION_ORIG();
+		@ASSERT_LOCATION_ORIG("original");
 		@SERVER_RESPOND("test2_saved");
 	} else if (@step == 22) {
 		@ASSERT(file_exists("tempOnline2"), "tempOnline2 does not exist", false);
@@ -138,7 +135,7 @@ $$test_Step
 		@LOAD();
 	} else if (@step == 26) {
 		// We received an online save, but then saved ourselves, reloading should take us to our save
-		@ASSERT_LOCATION_ORIG_RELOAD();
+		@ASSERT_LOCATION_ORIG("reload");
 	} else if (@step == 28) {
 		// Location is inside a block so we don't expect x/y to change when the saving starts happening.
 		@MOVE_LOCATION_2();
