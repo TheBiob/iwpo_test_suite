@@ -47,7 +47,8 @@ export class ServerPackage {
         while (index < packet.length) {
             index++;
             const char = packet[index];
-            if (char === ' ') continue;
+            if (char === undefined) break;
+            else if (char === ' ') continue;
             else if (char === '"') {
                 index = this.parse_string(packet, index);
             } else {

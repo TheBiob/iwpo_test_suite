@@ -1,6 +1,7 @@
 import path from "path";
 import { Config } from ".";
 import { Test } from "./TestCase";
+import { glob } from "glob";
 
 export async function RunIwpoTests(config: Config): Promise<boolean> {
     const tests = await Promise.all(
@@ -11,6 +12,27 @@ export async function RunIwpoTests(config: Config): Promise<boolean> {
         })
     );
 
+    return await _runTests(tests, config);
+}
+
+export async function TestDirectory(config: Config): Promise<void> {
+    const tests = await Promise.all(
+        (await glob(config.test_dir_resolved + '/**/*.exe', { absolute: true })).map(async filename => {
+            if (filename.includes('_online')) {
+                console.log('skipping file ' + filename);
+                return null;
+            } else {
+                const t: Test = new Test(config, path.basename(filename));
+                await t.readFromDefaultExe(filename);
+                return t;
+            }
+        })
+    );
+
+    await _runTests(tests.filter(x => x !== null), config);
+}
+
+async function _runTests(tests: Test[], config: Config): Promise<boolean> {
     let max_runners = config.max_parallel == 0 ? tests.length : Math.min(config.max_parallel, tests.length);
 
     console.log(`Executing tests with ${max_runners} in parallel...`);

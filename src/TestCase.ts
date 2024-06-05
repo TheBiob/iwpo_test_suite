@@ -10,6 +10,7 @@ import { EventOccurrence, IwpoEvent } from "./IwpoEvent";
 import { ServerPackage } from "./ServerPackage";
 import { Helper } from "./Helper";
 import { Server } from "./Server";
+import { glob } from "glob";
 
 // TODO: add the various extension files (font_online vs font_online8 etc) to the corresponding "don't copy" lists
 const GMS_FILES: string[] = [ // Files/directories that are GMS specific and don't need to be copied if the game isn't GMS
@@ -126,6 +127,9 @@ export class Test {
     public async readFromFile(file: string): Promise<void> {
         await this._setState(TestState.WAITING, async () => { await this._readFromFile(file); return TestState.READ; });
     }
+    public async readFromDefaultExe(file: string) {
+        await this._setState(TestState.WAITING, async () => { await this._fromExe(file); return TestState.READ; });
+    }
     public async Initialize(): Promise<void> {
         await this._setState(TestState.READ, async () => { await this._initialize(); return TestState.INITIALIZED; });
     }
@@ -145,8 +149,9 @@ export class Test {
         catch (e)
         {
             this.status = TestState.FAILED;
-            this.log.push(e.message);
-            this.message = e.message;
+            const msg = e.message ?? e;
+            this.log.push(msg);
+            this.message = msg;
         }
     }
     private async _readFromFile(filename: string): Promise<void> {
@@ -231,10 +236,51 @@ export class Test {
             }
         }
     }
+    private async _fromExe(filename: string): Promise<void> {
+        this.folder = path.dirname(filename);
+        this.game = path.basename(filename);
+        this.output = undefined;
+        this.is_gms = false; // TODO
+        
+        // Optional settings
+        this.args = ['--external-dll', '--no-foxwriting']; // These should never hurt to apply
+        this.timeout = 30;
+        this.iwpo_timeout = 20;
+        this.skip_execute = false;
+        this.expected_error = null;
+
+        // Resolve directories to absolute paths relative to this file
+        this.folder = path.resolve(path.dirname(filename), this.folder);
+
+        this.packages = new Array<ServerPackage>;
+        this.packages.push(new ServerPackage('CHAT', 'TCP 04 "test message"'));
+
+        const ev_begin = new IwpoEvent('worldCreate', this);
+        await ev_begin.setGml('pre', `
+@name="Test";
+@password="";
+@race=false;
+`.trim());
+        const ev_end = new IwpoEvent('worldEndStep', this);
+        await ev_end.setGml('pre', `
+@pX = 32;
+@pY = 32;
+@pExists = true;
+@stoppedFrames = 10;
+instance_create(@pX,@pY,%arg0);
+@TEST_SEND_CHAT=true;
+@TEST_MESSAGE="test message";
+@SERVER_EXPECT("CHAT");
+`.trim());
+        await ev_end.setGml('post', `@PASS();`);
+        this.events = new Array<IwpoEvent>(...IwpoEvent.defaultEvents(this), ev_begin, ev_end);
+    }
     private async _initialize(): Promise<void> {
         this.temp_dir = path.join(this.config.temp_folder_resolved, randomUUID());
 
-        this.output_resolved = path.resolve(this.temp_dir, this.output);
+        if (this.output !== undefined)
+            this.output_resolved = path.resolve(this.temp_dir, this.output);
+
         this.log_file = path.resolve(this.temp_dir, 'game_errors.log');
         this.result_file = path.resolve(this.temp_dir, 'result.txt');
         
@@ -273,7 +319,38 @@ export class Test {
             this.log.push(result.err);
         }
 
-        if (!await Helper.pathExists(this.output_resolved)) {
+        if (this.output_resolved === undefined) {
+            this.output_resolved = await (async (): Promise<string> => {
+                let file = this.temp_dir + '\\' + this.game.substring(0, this.game.length-4) + '_online.exe';
+
+                if (await Helper.pathExists(file)) {
+                    return file;
+                }
+
+                // TODO: test these bottom two conditions
+                file = file.substring(0, file.length-4) + '/';
+                if (await Helper.pathExists(file)) {
+                    let result = await glob(file+'*.exe', { absolute: true });
+                    if (result.length != 1) {
+                        this.log_verbose(`Cannot determine exe file. ${result.length} potential exe files found`);
+                        return undefined;
+                    } else {
+                        return result[0];
+                    }
+                }
+
+                file = path.basename(file) + 'data_backup.win';
+                if (await Helper.pathExists(file)) {
+                    return this.temp_dir + '\\' + this.game;
+                }
+
+                return undefined;
+            })();
+
+            if (this.output_resolved === undefined) {
+                return this.fail(`Output could not be determined for game. TODO: implement GMS and zipped GMS and also installer enabled GM8`);
+            }
+        } else if (!await Helper.pathExists(this.output_resolved)) {
             return this.fail(`Output file '${this.output}' did not exist`);
         }
 

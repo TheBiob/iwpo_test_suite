@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs/promises";
 
 import { Helper } from "./Helper";
-import { RunIwpoTests } from "./run_tests";
+import { RunIwpoTests, TestDirectory } from "./run_tests";
 
 export class Config {
     files: Array<string>;
@@ -16,6 +16,7 @@ export class Config {
     iwpo_base_folder: string;
     temp_folder: string;
     server_js: string;
+    test_dir: string;
 
     test_server: string;
 
@@ -25,6 +26,7 @@ export class Config {
     iwpo_data: string;
     server_js_resolved: string;
     temp_folder_resolved: string;
+    test_dir_resolved: string;
 
     public constructor() {
         this.resolved_files = [];
@@ -67,7 +69,9 @@ export class Config {
         this.iwpo_data = path.resolve(path.join(this.iwpo_base_folder, 'data'));
         this.server_js_resolved = path.resolve(this.server_js);
         this.temp_folder_resolved = path.resolve(this.temp_folder);
-    };
+        if (this.test_dir !== undefined)
+            this.test_dir_resolved = path.resolve(this.test_dir);
+    }
 }
 
 const ParseConfig = async function(args: Array<string>): Promise<Config> {
@@ -143,6 +147,18 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
                     }
                 }
                 break;
+            case '--test-directory':
+                if (i == args.length-1) {
+                    console.log('Missing file argument to --test-directory');
+                    config.help = true;
+                } else if (config.test_dir !== undefined) {
+                    console.log('--test-directory has already been configured');
+                    config.help = true;
+                } else {
+                    i++;
+                    config.test_dir = args[i];
+                }
+                break;
             case '-k':
             case '--keep':
                 config.keep = true;
@@ -169,6 +185,7 @@ const PrintHelp = async function() {
 --iwpo-base-dir <dir>  - Sets the Iwpo directory to be copied and modified. Default: iwpo/ 
 --temp-dir <dir>       - Sets the temporary directory to copy to. Default: temp/
 --max-parallel <count> - Sets how many tests are allowed to run in parallel. 0 means unlimited. Default: 1
+--test-directory <dir> - Attempts to convert every exe file within a directory and if successfull, runs the game with a generated connection test. Cannot be used with --file
 --keep, -k             - Keeps generated temporary directories
 --verbose, -v          - Enables verbose logging
 `);
@@ -184,11 +201,6 @@ const main = async function(): Promise<number> {
 
     await config.ResolveFiles();
 
-    if (config.resolved_files.length == 0) {
-        console.log('No test files found');
-        return 0;
-    }
-
     if (!await Helper.pathExists(config.iwpo_exe)) {
         console.log(`'${config.iwpo_exe}' does not exist`);
         return 0;
@@ -203,14 +215,22 @@ const main = async function(): Promise<number> {
         await fs.mkdir(config.temp_folder_resolved);
     }
 
-    console.time('run_iwpo_tests');
+    if (config.resolved_files.length == 0 && config.test_dir_resolved !== undefined) {
+        await TestDirectory(config);
+        return 0;
+    } else if (config.resolved_files.length > 0) {
+        console.time('run_iwpo_tests');
     
-    console.log(`Found ${config.resolved_files.length} test(s)`);
-    const all_passed = await RunIwpoTests(config);
+        console.log(`Found ${config.resolved_files.length} test(s)`);
+        const all_passed = await RunIwpoTests(config);
+    
+        console.timeEnd('run_iwpo_tests');
+    
+        return all_passed ? 0 : 1;
+    }
 
-    console.timeEnd('run_iwpo_tests');
-
-    return all_passed ? 0 : 1;
+    console.log('No test files found');
+    return 0;
 }
 
 main()
