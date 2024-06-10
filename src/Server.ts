@@ -5,7 +5,6 @@ import { Helper } from "./Helper";
 
 export class Server {
     test: Test;
-    script: string;
     process: proc.ChildProcess;
 
     stdout: string;
@@ -20,7 +19,6 @@ export class Server {
         this.stderr = '';
         this.failed = false;
         this.message = '';
-        this.script = path.resolve(test.temp_dir, 'server.mjs');
     }
 
     private handleServerMessage(message: any) {
@@ -52,7 +50,7 @@ export class Server {
     public start(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                this.process = proc.fork(this.script, [], {
+                this.process = proc.fork(this.test.config.server_js_resolved, [], {
                     cwd: this.test.temp_dir,
                     timeout: this.test.timeout*1000,
                     silent: true,
@@ -70,6 +68,7 @@ export class Server {
                 this.process.send({
                     name: 'config',
                     config: this.test.config.simplified(),
+                    server_packages: this.test.serialize_packets(),
                 });
             } catch (e) {
                 reject(e);

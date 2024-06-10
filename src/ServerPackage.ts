@@ -1,15 +1,13 @@
-import path from "path";
-import * as fs from "fs/promises";
 import { SmartBuffer } from "smart-buffer";
-
-import { Test } from "./TestCase";
-import { Helper } from "./Helper";
 
 enum PackageType {
     UNDEFINED, TCP, UDP
 }
 
-const PACKAGE_FOLDER = 'server_packages';
+export interface SerializedPackage {
+    data: string,
+    type: string,
+}
 
 export class ServerPackage {
     buffer: SmartBuffer;
@@ -23,18 +21,11 @@ export class ServerPackage {
         this.parse(packet);
     }
 
-    public async Initialize(test: Test): Promise<void> {
-        const package_folder = path.resolve(test.temp_dir, PACKAGE_FOLDER);
-        if (!await Helper.pathExists(package_folder)) {
-            test.log_verbose(`Creating server package directory '${package_folder}'`);
-            await fs.mkdir(package_folder);
-        }
-
-        const fileName = this.name + '.' + PackageType[this.type].toLowerCase();
-        test.log_verbose(`Saving server package '${fileName}'`);
-        await fs.writeFile(path.resolve(test.temp_dir, PACKAGE_FOLDER, fileName), this.buffer.toBuffer());
-
-        this.buffer.destroy(); // We don't need this buffer anymore, free it
+    public serialize(): SerializedPackage {
+        return {
+            data: this.buffer.toString('base64'),
+            type: PackageType[this.type].toLowerCase(),
+        };
     }
 
     private parse(packet: string) {

@@ -98,6 +98,14 @@ export class Test {
         this.status = TestState.WAITING;
     }
 
+    public serialize_packets(): any {
+        const map = {};
+        for (const packet of this.packages) {
+            map[packet.name] = packet.serialize();
+        }
+        return map;
+    }
+
     public passed(): boolean {
         return this.status === TestState.PASSED;
     }
@@ -286,30 +294,6 @@ instance_create(@pX,@pY,%arg0);
         
         this.log_verbose(`Copying '${this.folder}' to new temp directory '${this.temp_dir}'`);
         await fs.cp(this.folder, this.temp_dir, { recursive: true });
-
-        this.log_verbose(`Copying iwpo files`);
-        //await fs.cp(this.config.iwpo_exe, path.join(this.temp_dir, 'iwpo.exe'));  // launcher isn't used, we fork data/index.js directly to establish a communication channel
-        await fs.cp(this.config.server_js_resolved, path.join(this.temp_dir, 'server.mjs'));
-        await fs.cp(this.config.iwpo_data, path.join(this.temp_dir, 'data'), { recursive: true, filter(source, _destination) {
-            const name = path.basename(source);
-            if (SKIP_FILES.indexOf(name) >= 0) return false;
-            if (this.is_gms) {
-                if (GM8_FILES.indexOf(name) >= 0) return false;
-            } else {
-                if (GMS_FILES.indexOf(name) >= 0) return false;
-            }
-            return true;
-        }});
-
-        this.log_verbose(`Modifying iwpo files`);
-        for (const event of this.events) {
-            await event.Initialize();
-        }
-
-        this.log_verbose(`Writing server packages`);
-        for (const packet of this.packages) {
-            await packet.Initialize(this);
-        }
     }
     private async _run(): Promise<TestState> {
         const result = await this.runIwpo();
@@ -438,6 +422,18 @@ instance_create(@pX,@pY,%arg0);
         }
         return scripts;
     }
+    private getModifications(): object {
+        const mods = {};
+        for (const event of this.events) {
+            if (event.gml.has(EventOccurrence.pre)) {
+                mods['pre_' + event.file] = event.gml.get(EventOccurrence.pre);
+            }
+            if (event.gml.has(EventOccurrence.post)) {
+                mods['post_' + event.file] = event.gml.get(EventOccurrence.post);
+            }
+        }
+        return mods;
+    }
 
     private runIwpo(): Promise<{ out: string; err: string; }> {
         return new Promise((resolve, reject) => {
@@ -453,7 +449,7 @@ instance_create(@pX,@pY,%arg0);
                     `server=${this.config.test_server},${this.tcp_port},${this.udp_port}`,
                 ];
                 this.log_verbose(`Running iwpo with args "${args.join('" "')}"`);
-                const process = proc.fork(path.resolve(this.temp_dir, 'data', 'index.js'), args,
+                const process = proc.fork(path.resolve(this.config.iwpo_data, 'index.js'), args,
                     // Options
                     {
                         cwd: this.temp_dir,
@@ -473,6 +469,7 @@ instance_create(@pX,@pY,%arg0);
                     name: 'run',
                     config: this.config.simplified(),
                     scripts: this.getScripts(),
+                    modifications: this.getModifications(),
                 });
             } catch (e) {
                 reject(e);

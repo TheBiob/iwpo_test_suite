@@ -67,6 +67,16 @@ export class Config {
 
         this.iwpo_exe = path.resolve(path.join(this.iwpo_base_folder, 'iwpo.exe'));
         this.iwpo_data = path.resolve(path.join(this.iwpo_base_folder, 'data'));
+        if (path.extname(this.server_js).toLowerCase() != ".mjs") {
+            // Make sure the server js has the .mjs extension, copy it to server + '.mjs' and use that instead if it doesn't.
+            // Must end in .mjs (or have a package.json config) for node to recognize it as a module it can run and you apparently can't just tell node what it is directly.
+            // I'm not entirely sure if there's a better fix but this works so I'll keep it until it doesn't anymore.
+            let mjs = this.server_js + '.mjs';
+            if (await Helper.pathExists(mjs))
+                await fs.rm(mjs);
+            await fs.copyFile(this.server_js, mjs);
+            this.server_js = mjs;
+        }
         this.server_js_resolved = path.resolve(this.server_js);
         this.temp_folder_resolved = path.resolve(this.temp_folder);
         if (this.test_dir !== undefined)

@@ -79,7 +79,7 @@ Everything after a (or up until the next) $$ marker will be copied into the rele
 
 ### Scripts
 $$script_[name] events can be used to create scripts in the resulting executable. These scripts will be added using the GML Prefix so you can call them by prefixing them with an @ symbol.
-As an example, this defines the LOAD script to be used in the $$test_Step event:
+As an example, this defines the LOAD script to be used in the $$post_TestStep event:
 
     $$script_LOAD
         // Load the game, the way the game does it
@@ -87,7 +87,7 @@ As an example, this defines the LOAD script to be used in the $$test_Step event:
         saveGame(0);
         loadGame(0);
 
-    $$test_Step
+    $$post_TestStep
         @LOAD(); // Call load script
 
 
@@ -99,8 +99,8 @@ There will also be the "@vars_loaded" variable which will be true if @vars was l
 To run code in these events the following events are available:
 |Event|Info|
 |-|-|
-|$$test_Step     | The step event of the test object. This does not run in EndStep like the world event. The test object is always the last in the object list.|
-|$$test_GameBegin | The Game Begin event of the test object. Runs after the test object's own Game Begin code.|
+|$$post_TestStep      | The step event of the test object. This does not run in EndStep like the world event. The test object is always the last in the object list.|
+|$$post_TestGameBegin | The Game Begin event of the test object. Runs after the test object's own Game Begin code.|
 
 ## Helper Scripts
 |script|info|
@@ -120,17 +120,15 @@ These two files are generally created by the @ASSERT and @SUCCESS helper scripts
 ## Execution
 The test suite will execute things in the following order:
 1. Copy the folder specified by [folder] to a temporary location
-2. Copy iwpo to the temporary directory
-   1. Modify the tool's GML files based on the information in the .iwpotest file
-3. Run iwpo.exe with [game], [arguments] (if specified) and a generated tcp/udp port on localhost as the server argument as well as the --test-suite argument
-4. If iwpo.exe fails or if the file specified by [output] does not exist -\> fail the test
-   1. If skip_execute is set, succed the test
-5. Run server.js with the generated tcp/udp ports on localhost
-6. Execute [output].
+2. Run iwpo.exe with [game], [arguments] (if specified) and a generated tcp/udp port on localhost as the server argument as well as the --test-suite argument
+3. If iwpo.exe fails or if the file specified by [output] does not exist -\> fail the test
+   1. If skip_execute is set, succeed the test
+4. Run server.mjs with the generated tcp/udp ports on localhost
+5. Execute [output].
    1. The output executable is now responsible for figuring out if features are working
    2. if the executable does not exit after [timeout] seconds -\> kill the process and fail the test
-7. Query server.js for test results, if errors occurred -\> fail the test
-8. Succeed test
+6. Query server.js for test results, if errors occurred -\> fail the test
+7. Succeed test
 
 On test fail/success:
 1) Stop server.js if it's running

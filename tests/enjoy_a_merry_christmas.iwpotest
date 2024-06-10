@@ -43,10 +43,10 @@ $$pre_worldCreate
 	@password="";
 	@race=false;
 
-$$test_GameBegin
+$$post_TestGameBegin
 	@step = 0;
 
-$$test_Step
+$$post_TestStep
 	@step += 1;
 
 	if (@step == 5) {

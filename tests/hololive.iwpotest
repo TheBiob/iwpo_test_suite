@@ -82,13 +82,13 @@ $$pre_worldCreate
 	@password="";
 	@race=false;
 
-$$test_GameBegin
+$$post_TestGameBegin
 	if (@vars_loaded == false) {
 		ds_list_add(@vars, 0);
 	}
 	@step = ds_list_find_value(@vars, 0);
 
-$$test_Step
+$$post_TestStep
 	@step += 1;
 	ds_list_replace(@vars, 0, @step);
 
