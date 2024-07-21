@@ -12,16 +12,73 @@ import { Helper } from "./Helper";
 import { Server } from "./Server";
 import { glob } from "glob";
 
-// TODO: add the various extension files (font_online vs font_online8 etc) to the corresponding "don't copy" lists
-const GMS_FILES: string[] = [ // Files/directories that are GMS specific and don't need to be copied if the game isn't GMS
-    'converterGMS.exe', 'GMS', 'http_dll_2_3_x64.dll'
-];
-const GM8_FILES: string[] = [ // Files/directories that are GM8 specific and don't need to be copied if the game is GMS
-    'gml'
-]
-const SKIP_FILES: string[] = [ // Files/directories that can always be skipped
-    'mac', 'tmp',
-]
+const TEST_SCRIPTS = {
+    'ASSERTEQ': `
+    @tsExpected = string_format(argument0, 10, 10);
+    @tsActual = string_format(argument1, 10, 10);
+    @tsText = argument2;
+    @tsAbort = argument3;
+
+    @ASSERT(@tsExpected == @tsActual, @tsText + ": Expected '" + string(@tsExpected) + "' but got '" + string(@tsActual) + "'.", @tsAbort);
+    `,
+
+    'ASSERT': `
+    @tsCondition = argument0;
+    @tsText = argument1;
+    @tsAbort = argument2;
+
+    if (!@tsCondition) {
+        @FAIL(@tsText, @tsAbort);
+    }
+    `,
+
+    'SERVER_SEND': `
+    @tsPackage = argument0;
+    @tsKey = argument1;
+    @tsFlush = argument2;
+    @tsBuffer = @buffer_create();
+    @buffer_clear(@tsBuffer);
+    @buffer_write_uint8(@tsBuffer, @tsKey);
+    @buffer_write_string(@tsBuffer, @tsPackage);
+    @socket_write_message(%world.@socket, @tsBuffer);
+    @buffer_destroy(@tsBuffer);
+    if (@tsFlush) {
+        @socket_update_write(%world.@socket);
+    }
+    `,
+
+    'SERVER_RESPOND': `
+    @SERVER_SEND(argument0, 100, false)
+    `, // 100 - Respond with requested package
+
+    'SERVER_EXPECT': `
+    @SERVER_SEND(argument0, 101, false);
+    `, // 101 - Expect server package
+    
+    'PASS': `
+    @SERVER_SEND("ok", 200, true);
+    game_end();
+    `, // 200 - ok, pass the test
+
+    'FAIL': `
+    @tsMsg = argument0;
+    @tsAbort = argument1;
+#if GMS
+    @dir = program_directory;
+#endif
+#if not GMS
+    @dir = "";
+#endif
+    @tsFile = file_text_open_append(@dir+"game_errors.log");
+    file_text_write_string(@tsFile, @tsMsg);
+    file_text_writeln(@tsFile);
+    file_text_close(@tsFile);
+    @SERVER_SEND(@tsMsg, 201, true);
+    if (@tsAbort) {
+        game_end();
+    }
+    `,
+};
 
 enum TestState {
     WAITING,
@@ -251,19 +308,32 @@ export class Test {
 @name="Test";
 @password="";
 @race=false;
+@shouldPass = false;
 `.trim());
         const ev_end = new IwpoEvent('worldEndStep', this);
+// @shouldPass delays the PASS for a frame because sometimes it would fail to flush the PASS message in post WorldEndStep
         await ev_end.setGml('pre', `
+if (@shouldPass) {
+    @PASS();
+    exit;
+}
+@shouldPass = true;
 @pX = 32;
 @pY = 32;
 @pExists = true;
 @stoppedFrames = 10;
-instance_create(@pX,@pY,%arg0);
+#if not GMS
+    instance_create(@pX,@pY,%arg0);
+#endif
+#if GMS
+    @create(%player);
+    %player.x = @pX;
+    %player.y = @pY;
+#endif
 @TEST_SEND_CHAT=true;
 @TEST_MESSAGE="test message";
 @SERVER_EXPECT("CHAT");
 `.trim());
-        await ev_end.setGml('post', `@PASS();`);
         this.events = new Array<IwpoEvent>(...IwpoEvent.defaultEvents(this), ev_begin, ev_end);
     }
     private async _initialize(): Promise<void> {
@@ -306,7 +376,7 @@ instance_create(@pX,@pY,%arg0);
                     }
                 }
 
-                file = path.basename(file) + 'data_backup.win';
+                file = path.dirname(file.substring(0, file.length-1)) + '/data_backup.win';
                 if (await Helper.pathExists(file)) {
                     return this.temp_dir + '\\' + this.game;
                 }
@@ -341,7 +411,9 @@ instance_create(@pX,@pY,%arg0);
             const fileContent = await fs.readFile(this.log_file, { encoding: 'utf-8' });
             this.log_verbose(fileContent);
 
-            if (this.expected_error !== null && this.expected_error.join('\n').trim() != fileContent.trim().replace(/\r\n/g, '\n')) {
+            if (this.expected_error === null)
+                return this.fail('game_erros.log was not expected');
+            else if (this.expected_error.join('\n').trim() != fileContent.trim().replace(/\r\n/g, '\n')) {
                 return this.fail(`game_errors.log differed from expected error`);
             } else {
                 this.log_verbose('errors ok');
@@ -349,17 +421,6 @@ instance_create(@pX,@pY,%arg0);
         } else if (this.expected_error != null) {
             this.log_verbose(`Log file '${this.log_file}' was not found`);
             return this.fail(`game_errors.log was expected but not created.`);
-        }
-
-        if (!await Helper.pathExists(this.result_file)) {
-            this.log_verbose(`'${this.result_file}' does not exist`);
-            return this.fail('Result file was not created');
-        }
-
-        const fileContent = await fs.readFile(this.result_file, { encoding: 'utf-8' });
-        if (fileContent !== 'ok') {
-            this.log_verbose('Test failed with status: ' + fileContent);
-            return this.fail(fileContent);
         }
 
         if (!this.server.ok()) {
@@ -408,7 +469,13 @@ instance_create(@pX,@pY,%arg0);
 
     private getScripts(): object {
         const scripts = {};
+        for (const name in TEST_SCRIPTS) {
+            scripts[name] = TEST_SCRIPTS[name];
+        }
         for (const event of this.events) {
+            if (scripts[event.file] !== undefined)
+                throw new Error(`Script '${event.file}' already defined`);
+
             const gml = event.gml.get(EventOccurrence.script);
             if (gml !== undefined) {
                 scripts[event.file] = gml;
