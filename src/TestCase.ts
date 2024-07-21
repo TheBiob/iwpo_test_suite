@@ -76,9 +76,7 @@ export class Test {
     packages: Array<ServerPackage>;
 
     status: TestState;
-    message: string;
-
-    log: Array<string>;
+    message_log: Array<string>;
 
     temp_dir: string;
     output_resolved: string;
@@ -89,8 +87,9 @@ export class Test {
 
     public constructor(config: Config, name: string) {
         this.config = config;
-        this.log = new Array<string>;
         this.name = name;
+
+        this.message_log = new Array<string>();
 
         this.tcp_port = Helper.getPort();
         this.udp_port = Helper.getPort();
@@ -113,23 +112,9 @@ export class Test {
         return this.status !== TestState.FAILED && this.status !== TestState.PASSED;
     }
     public testResult(): string {
-        let message = `[${this.name}] `;
-        if (this.passed()) {
-            message += 'PASSED';
-        } else {
-            message += 'FAILED';
-        }
-
-        if (this.message !== undefined) {
-            message += ' - '
-            message += this.message;
-        }
-
-        if (this.config.verbose) {
-            message += '\n' + this.log.join('\n');
-        }
-
-        return message;
+        if (this.passed())
+            return this.format('PASSED');
+        return this.format('FAILED');
     }
 
     public async readFromFile(file: string): Promise<void> {
@@ -158,8 +143,7 @@ export class Test {
         {
             this.status = TestState.FAILED;
             const msg = e.message ?? e;
-            this.log.push(msg);
-            this.message = msg;
+            this.log_verbose(msg);
         }
     }
     private async _readFromFile(filename: string): Promise<void> {
@@ -168,7 +152,7 @@ export class Test {
         if (fileContents.length == 0 || fileContents.length > 2) throw new Error(`Multiple [events] sections found in '${filename}'`);
     
         const ini = parse(fileContents[0]);
-        const config = this.config;
+        const self = this;
     
         function getValue(prop: string): any | undefined {
             let value = ini;
@@ -191,8 +175,7 @@ export class Test {
         function optional<T>(prop: string, convertFn: (input: any) => T, defaultValue: T): T {
             const value = getValue(prop);
             if (value === undefined) {
-                if (config.verbose)
-                    console.log(`Using default value '${defaultValue}' for key '${prop}' in '${filename}'`);
+                self.log_verbose(`Using default value '${defaultValue}' for key '${prop}' in '${filename}'`);
                 return defaultValue;
             }
     
@@ -298,9 +281,9 @@ instance_create(@pX,@pY,%arg0);
     private async _run(): Promise<TestState> {
         const result = await this.runIwpo();
 
-        this.log.push(result.out);
+        this.log_verbose(result.out);
         if (result.err !== '') {
-            this.log.push(result.err);
+            this.log_verbose(result.err);
         }
 
         if (this.output_resolved === undefined) {
@@ -356,12 +339,12 @@ instance_create(@pX,@pY,%arg0);
         
         if (await Helper.pathExists(this.log_file)) {
             const fileContent = await fs.readFile(this.log_file, { encoding: 'utf-8' });
-            this.log.push(...fileContent.split('\n'));
+            this.log_verbose(fileContent);
 
             if (this.expected_error !== null && this.expected_error.join('\n').trim() != fileContent.trim().replace(/\r\n/g, '\n')) {
                 return this.fail(`game_errors.log differed from expected error`);
             } else {
-                this.log.push('errors ok');
+                this.log_verbose('errors ok');
             }
         } else if (this.expected_error != null) {
             this.log_verbose(`Log file '${this.log_file}' was not found`);
@@ -401,15 +384,26 @@ instance_create(@pX,@pY,%arg0);
     }
 
     private fail(msg: string): TestState {
-        this.log.push(msg);
-        this.message = msg;
+        this.log_verbose(msg);
         return TestState.FAILED;
     }
 
-    public log_verbose(msg: string) {
-        if (this.config.verbose && msg !== '') {
-            console.log(`[${this.name}] ${msg}`);
+    public log_verbose(msg: string | Array<string>) {
+        if (Array.isArray(msg)) {
+            for (const message of msg) {
+                this.log_verbose(message);
+            }
+            return;
         }
+
+        this.message_log.push(msg);
+        if (this.config.verbose && msg !== '') {
+            console.log(this.format(msg));
+        }
+    }
+
+    public format(msg: string) {
+        return `[${this.name}] ${msg.split(/[\r\n]/g).join('\n>> ')}`;
     }
 
     private getScripts(): object {
@@ -459,8 +453,8 @@ instance_create(@pX,@pY,%arg0);
                         env: {},
                     }
                 );
-                process.stdout.on('data', ((msg: string) => { this.log_verbose(msg.toString().trim()); std.out += msg.toString(); }).bind(this));
-                process.stderr.on('data', ((msg: string) => { this.log_verbose(msg.toString().trim()); std.err += msg.toString(); }).bind(this));
+                process.stdout.on('data', ((msg: string) => { std.out += msg.toString(); }).bind(this));
+                process.stderr.on('data', ((msg: string) => { std.err += msg.toString(); }).bind(this));
                 process.on('exit', () => {
                     resolve(std);
                 });

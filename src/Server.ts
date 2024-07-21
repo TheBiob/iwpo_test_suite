@@ -30,7 +30,7 @@ export class Server {
                 && typeof message.passed === 'boolean'
                 && typeof message.failed === 'boolean'
         ) {
-            this.test.log.push(...message.log);
+            this.test.log_verbose(message.log);
             if (message.failed) {
                 this.fail(message.log.pop());
             }
@@ -44,7 +44,7 @@ export class Server {
     private fail(msg: string) {
         this.failed = true;
         this.message = msg;
-        this.test.log.push(msg);
+        this.test.log_verbose(msg);
     }
 
     public start(): Promise<void> {

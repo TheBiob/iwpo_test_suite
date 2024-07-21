@@ -18,6 +18,8 @@ export class Config {
     server_js: string;
     test_dir: string;
 
+    write_verbose_log: boolean;
+
     test_server: string;
 
     // Variables will be resolved by ResolveFiles and contain the absolute paths to the relevant resources
@@ -176,6 +178,10 @@ const ParseConfig = async function(args: Array<string>): Promise<Config> {
             case '-v':
             case '--verbose':
                 config.verbose = true;
+                break;
+            case '-w':
+            case '--write-verbose-log':
+                config.write_verbose_log = true;
                 break;
         }
     }
