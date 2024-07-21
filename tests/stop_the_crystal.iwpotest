@@ -126,7 +126,8 @@ $$post_TestStep
 		@ASSERT_LOCATION_ORIG();
 		@SERVER_RESPOND("test2_saved");
 	} else if (@step == 22) {
-		@ASSERT(objWorld.@sSaved, "online save does not exist", false);
+		// Note: Since iwpo 10b16 the default behavior is to add code to __ONLINE_world instead of the existing world object. This might change later and cause this to test to fail.
+		@ASSERT(__ONLINE_world.@sSaved, "online save does not exist", false);
 		@SAVE();
 	} else if (@step == 24) {
 		@LOAD();

@@ -90,7 +90,8 @@ $$post_TestStep
 
 		@SERVER_RESPOND("saved_1745_791");
 	} else if (@step == 22) {
-		@ASSERT(world.@sSaved, "no online save received", false);
+		// Note: Since iwpo 10b16 the default behavior is to add code to __ONLINE_world instead of the existing world object. This might change later and cause this to test to fail.
+		@ASSERT(__ONLINE_world.@sSaved, "no online save received", false);
 		
 		// Same thing the save point does, though in Step instead of On Collision with Bullet
 		saveGame(0);
